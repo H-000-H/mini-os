@@ -1,41 +1,7 @@
 {
-  "date": "2026-08-27T01:12:43.294717300+08:00",
+  "date": "2026-08-27T02:21:57.805539100+08:00",
   "data": {
     "CMAKE_CXX_COMPILER": {
-      "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
-        "range": {
-          "start": {
-            "line": 7,
-            "character": 4
-          },
-          "end": {
-            "line": 7,
-            "character": 22
-          }
-        }
-      },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
-      "is_function": false
-    },
-    "CMAKE_C_COMPILER": {
-      "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
-        "range": {
-          "start": {
-            "line": 3,
-            "character": 4
-          },
-          "end": {
-            "line": 3,
-            "character": 20
-          }
-        }
-      },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt\n\nTemporary set the cross-compiler to arm-none-eabi-gcc for testing",
-      "is_function": false
-    },
-    "CMAKE_PROJECT_NAME": {
       "location": {
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
@@ -57,11 +23,11 @@
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 5,
+            "line": 9,
             "character": 4
           },
           "end": {
-            "line": 5,
+            "line": 9,
             "character": 22
           }
         }
@@ -69,17 +35,17 @@
       "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
       "is_function": false
     },
-    "MINI_OS_INC": {
+    "CMAKE_PROJECT_NAME": {
       "location": {
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 17,
+            "line": 15,
             "character": 4
           },
           "end": {
-            "line": 17,
-            "character": 15
+            "line": 15,
+            "character": 22
           }
         }
       },
@@ -91,28 +57,11 @@
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 15,
+            "line": 19,
             "character": 4
           },
           "end": {
-            "line": 15,
-            "character": 33
-          }
-        }
-      },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
-      "is_function": false
-    },
-    "CMAKE_TRY_COMPILE_TARGET_TYPE": {
-      "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
-        "range": {
-          "start": {
-            "line": 9,
-            "character": 4
-          },
-          "end": {
-            "line": 9,
+            "line": 19,
             "character": 33
           }
         }
@@ -125,6 +74,23 @@
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
+            "line": 25,
+            "character": 4
+          },
+          "end": {
+            "line": 25,
+            "character": 15
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
+      "is_function": false
+    },
+    "MINI_OS_INC": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
+        "range": {
+          "start": {
             "line": 21,
             "character": 4
           },
@@ -135,6 +101,40 @@
         }
       },
       "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
+      "is_function": false
+    },
+    "CMAKE_TRY_COMPILE_TARGET_TYPE": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
+        "range": {
+          "start": {
+            "line": 13,
+            "character": 4
+          },
+          "end": {
+            "line": 13,
+            "character": 33
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
+      "is_function": false
+    },
+    "CMAKE_C_COMPILER": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
+        "range": {
+          "start": {
+            "line": 7,
+            "character": 4
+          },
+          "end": {
+            "line": 7,
+            "character": 20
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt\n\nTemporary set the cross-compiler to arm-none-eabi-gcc for testing",
       "is_function": false
     }
   }
