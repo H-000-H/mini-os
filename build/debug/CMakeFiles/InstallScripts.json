@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/mini-tree/mini-os/build/debug/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

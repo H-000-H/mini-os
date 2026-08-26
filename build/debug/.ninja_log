@@ -1,0 +1,5 @@
+# ninja log v7
+1	153	8094674837121239	build.ninja	4b18ab3e8de8f13
+1	153	8094674837091248	C:/mini-tree/mini-os/build/debug/cmake_install.cmake	4b18ab3e8de8f13
+13	68	8094674199791068	CMakeFiles/mini-os.dir/src/list.c.obj	7e9c18a550f12963
+68	120	8094674200347865	libmini-os.a	69a518cbd55ac9d3

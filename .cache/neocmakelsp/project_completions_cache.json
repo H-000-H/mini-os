@@ -1,0 +1,75 @@
+{
+  "date": "2026-08-27T01:12:43.294165500+08:00",
+  "data": {
+    "C:\\mini-tree\\mini-os\\CMakeLists.text": [
+      {
+        "label": "CMAKE_PROJECT_NAME",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.text"
+      },
+      {
+        "label": "MINI_OS_INC",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.text"
+      },
+      {
+        "label": "MINI_OS_SRC",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.text"
+      }
+    ],
+    "C:\\mini-tree\\mini-os\\CMakeLists.txt": [
+      {
+        "label": "CMAKE_C_COMPILER",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt\n\nTemporary set the cross-compiler to arm-none-eabi-gcc for testing"
+      },
+      {
+        "label": "CMAKE_ASM_COMPILER",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      },
+      {
+        "label": "CMAKE_CXX_COMPILER",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      },
+      {
+        "label": "CMAKE_TRY_COMPILE_TARGET_TYPE",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      },
+      {
+        "label": "CMAKE_PROJECT_NAME",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      },
+      {
+        "label": "CMAKE_EXPORT_COMPILE_COMMANDS",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      },
+      {
+        "label": "MINI_OS_INC",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      },
+      {
+        "label": "MINI_OS_SRC",
+        "kind": 12,
+        "detail": "Value",
+        "documentation": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt"
+      }
+    ]
+  }
+}

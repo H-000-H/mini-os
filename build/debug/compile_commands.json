@@ -1,0 +1,8 @@
+[
+{
+  "directory": "C:/mini-tree/mini-os/build/debug",
+  "command": "C:\\PROGRA~2\\ARMGNU~1\\133167~1.3RE\\bin\\AR19DD~1.EXE -IC:/mini-tree/mini-os/inc -o CMakeFiles\\mini-os.dir\\src\\list.c.obj -c C:\\mini-tree\\mini-os\\src\\list.c",
+  "file": "C:/mini-tree/mini-os/src/list.c",
+  "output": "C:/mini-tree/mini-os/build/debug/CMakeFiles/mini-os.dir/src/list.c.obj"
+}
+]
