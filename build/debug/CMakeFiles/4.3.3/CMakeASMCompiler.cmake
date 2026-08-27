@@ -2,7 +2,7 @@ set(CMAKE_ASM_COMPILER "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/1
 set(CMAKE_ASM_COMPILER_ARG1 "")
 set(CMAKE_AR "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/bin/arm-none-eabi-ar.exe")
 set(CMAKE_ASM_COMPILER_AR "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/bin/arm-none-eabi-gcc-ar.exe")
-set(CMAKE_RANLIB ":")
+set(CMAKE_RANLIB "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/bin/arm-none-eabi-ranlib.exe")
 set(CMAKE_ASM_COMPILER_RANLIB "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/bin/arm-none-eabi-gcc-ranlib.exe")
 set(CMAKE_LINKER "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/13.3 rel1/bin/arm-none-eabi-ld.exe")
 set(CMAKE_LINKER_LINK "")
@@ -24,7 +24,7 @@ set(CMAKE_ASM_COMPILER_ARCHITECTURE_ID "")
 set(CMAKE_ASM_IGNORE_EXTENSIONS h;H;o;O;obj;OBJ;def;DEF;rc;RC)
 set(CMAKE_ASM_LINKER_PREFERENCE 0)
 set(CMAKE_ASM_LINKER_DEPFILE_SUPPORTED )
-set(CMAKE_LINKER_PUSHPOP_STATE_SUPPORTED TRUE)
+set(CMAKE_LINKER_PUSHPOP_STATE_SUPPORTED )
 set(CMAKE_ASM_LINKER_PUSHPOP_STATE_SUPPORTED )
 
 

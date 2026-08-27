@@ -1,55 +1,38 @@
 {
-  "date": "2026-08-27T02:21:57.805539100+08:00",
+  "date": "2026-08-27T13:20:48.007469100+08:00",
   "data": {
-    "CMAKE_CXX_COMPILER": {
+    "CMAKE_OBJCOPY": {
       "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
         "range": {
           "start": {
-            "line": 11,
+            "line": 7,
             "character": 4
           },
           "end": {
-            "line": 11,
-            "character": 22
+            "line": 7,
+            "character": 17
           }
         }
       },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
       "is_function": false
     },
-    "CMAKE_ASM_COMPILER": {
+    "CACHE{TOOL_CHAIN_PREFIX}": {
       "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
         "range": {
           "start": {
-            "line": 9,
+            "line": 3,
             "character": 4
           },
           "end": {
-            "line": 9,
-            "character": 22
+            "line": 3,
+            "character": 28
           }
         }
       },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
-      "is_function": false
-    },
-    "CMAKE_PROJECT_NAME": {
-      "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
-        "range": {
-          "start": {
-            "line": 15,
-            "character": 4
-          },
-          "end": {
-            "line": 15,
-            "character": 22
-          }
-        }
-      },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
       "is_function": false
     },
     "CMAKE_EXPORT_COMPILE_COMMANDS": {
@@ -57,11 +40,11 @@
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 19,
+            "line": 10,
             "character": 4
           },
           "end": {
-            "line": 19,
+            "line": 10,
             "character": 33
           }
         }
@@ -69,16 +52,101 @@
       "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
       "is_function": false
     },
+    "TOOL_CHAIN_PREFIX": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
+        "range": {
+          "start": {
+            "line": 3,
+            "character": 4
+          },
+          "end": {
+            "line": 3,
+            "character": 21
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
+      "is_function": false
+    },
+    "CMAKE_C_COMPILER": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
+        "range": {
+          "start": {
+            "line": 4,
+            "character": 4
+          },
+          "end": {
+            "line": 4,
+            "character": 20
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
+      "is_function": false
+    },
+    "CMAKE_SYSTEM_NAME": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 4
+          },
+          "end": {
+            "line": 0,
+            "character": 21
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
+      "is_function": false
+    },
+    "CMAKE_CXX_COMPILER": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
+        "range": {
+          "start": {
+            "line": 6,
+            "character": 4
+          },
+          "end": {
+            "line": 6,
+            "character": 22
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
+      "is_function": false
+    },
+    "CMAKE_ASM_COMPILER": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 4
+          },
+          "end": {
+            "line": 5,
+            "character": 22
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
+      "is_function": false
+    },
     "MINI_OS_SRC": {
       "location": {
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 25,
+            "line": 16,
             "character": 4
           },
           "end": {
-            "line": 25,
+            "line": 16,
             "character": 15
           }
         }
@@ -91,11 +159,11 @@
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 21,
+            "line": 12,
             "character": 4
           },
           "end": {
-            "line": 21,
+            "line": 12,
             "character": 15
           }
         }
@@ -103,38 +171,55 @@
       "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
       "is_function": false
     },
-    "CMAKE_TRY_COMPILE_TARGET_TYPE": {
+    "CMAKE_PROJECT_NAME": {
       "location": {
         "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
         "range": {
           "start": {
-            "line": 13,
+            "line": 6,
             "character": 4
           },
           "end": {
-            "line": 13,
-            "character": 33
+            "line": 6,
+            "character": 22
           }
         }
       },
       "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt",
       "is_function": false
     },
-    "CMAKE_C_COMPILER": {
+    "CMAKE_SYSTEM_PROCESSOR": {
       "location": {
-        "uri": "file:///C:/mini-tree/mini-os/CMakeLists.txt",
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
         "range": {
           "start": {
-            "line": 7,
+            "line": 1,
             "character": 4
           },
           "end": {
-            "line": 7,
-            "character": 20
+            "line": 1,
+            "character": 26
           }
         }
       },
-      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\CMakeLists.txt\n\nTemporary set the cross-compiler to arm-none-eabi-gcc for testing",
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
+      "is_function": false
+    },
+    "CMAKE_TRY_COMPILE_TARGET_TYPE": {
+      "location": {
+        "uri": "file:///C:/mini-tree/mini-os/cmake/arm-tool-chain.cmake",
+        "range": {
+          "start": {
+            "line": 9,
+            "character": 4
+          },
+          "end": {
+            "line": 9,
+            "character": 33
+          }
+        }
+      },
+      "document_info": "defined variable\nfrom: C:\\mini-tree\\mini-os\\cmake\\arm-tool-chain.cmake",
       "is_function": false
     }
   }

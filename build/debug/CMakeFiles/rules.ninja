@@ -25,7 +25,7 @@ rule C_COMPILER__mini-os_unscanned_Debug
 # Rule for linking C static library.
 
 rule C_STATIC_LIBRARY_LINKER__mini-os_Debug
-  command = C:\WINDOWS\system32\cmd.exe /C "$PRE_LINK && "C:\Program Files\CMake\bin\cmake.exe" -E rm -f $TARGET_FILE && C:\PROGRA~2\ARMGNU~1\133167~1.3RE\bin\ARM-NO~2.EXE qc $TARGET_FILE $LINK_FLAGS $in && $POST_BUILD"
+  command = C:\WINDOWS\system32\cmd.exe /C "$PRE_LINK && "C:\Program Files\CMake\bin\cmake.exe" -E rm -f $TARGET_FILE && C:\PROGRA~2\ARMGNU~1\133167~1.3RE\bin\ARM-NO~2.EXE qc $TARGET_FILE $LINK_FLAGS $in && C:\PROGRA~2\ARMGNU~1\133167~1.3RE\bin\AR17F9~1.EXE $TARGET_FILE && $POST_BUILD"
   description = Linking C static library $TARGET_FILE
   restat = $RESTAT
 

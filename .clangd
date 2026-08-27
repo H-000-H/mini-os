@@ -1,2 +1,5 @@
 CompileFlags:
   CompilationDatabase: build/debug
+  Remove:
+    - "-mcpu=*"
+    - "-mthumb"
