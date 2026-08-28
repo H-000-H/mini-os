@@ -1,3 +1,0 @@
-C:/mini-tree/mini-os/build/debug/CMakeFiles/mini-os.dir
-C:/mini-tree/mini-os/build/debug/CMakeFiles/edit_cache.dir
-C:/mini-tree/mini-os/build/debug/CMakeFiles/rebuild_cache.dir
