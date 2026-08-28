@@ -1,7 +1,7 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file mini_config.h
- * @brief mini-os configuration header - only include definitions
+ * @brief mini-os configuration heaper - only include definitions
  * @author H-000-H
  */
 #ifndef MINI_CONFIG_H
@@ -17,9 +17,9 @@
 #endif
 
 /*
- * @brief Define MINI_NULL_TO_STANDARD to use standard NULL macro instead of 0
+ * @brief Define MINI_OS_NULL_TO_STANDARD to use standard NULL macro instead of 0
  */
-#define MINI_NULL_TO_STANDARD
+#define MINI_OS_NULL_TO_STANDARD
 
 /*
  * @brief Define CONFIG_THREADS_NAME_MAX to set the maximum length of thread names
@@ -36,16 +36,29 @@
 #define QUEUE_NAME_LEN 32
 #endif
 
-#ifdef CONFIG_POOL_NAME_LEN
-#define POOL_NAME_LEN CONFIG_POOL_NAME_LEN
+#define MINI_OS_IDLE_THREAD_NAME "idle_thread"
+
+#define MINI_OS_IDLE_THREAD_PRIORITY 1
+
+#ifdef CONFIG_MINI_IDLE_THREAD_STACK_SIZE
+#define MINI_OS_IDLE_THREAD_STACK_SIZE CONFIG_MINI_IDLE_THREAD_STACK_SIZE
 #else
-#define POOL_NAME_LEN 32
+#define MINI_OS_IDLE_THREAD_STACK_SIZE 512
 #endif
 
-#ifdef CONFIG_BUFFER_BLOCK_MAX_SIZE
-#define BUFFER_BLOCK_MAX_SIZE CONFIG_BUFFER_BLOCK_MAX_SIZE
+#define MINI_OS_IDLE_THREAD_CONSTRUCTOR 105
+
+#ifdef CONFIG_MINI_EXECUTION_SLAB_CHECK_SIZE
+#define MINI_EXECUTION_SLAB_CHECK_SIZE CONFIG_MINI_EXECUTION_SLAB_CHECK_SIZE
 #else
-#define BUFFER_BLOCK_MAX_SIZE 24
+#define MINI_EXECUTION_SLAB_CHECK_SIZE 0
 #endif
 
+/*
+ * @brief Enable thread detach/join support (adds per-thread join fields)
+ * @note Off by default; define CONFIG_MINI_OS_THREAD_DETACH in config.h to enable
+ */
+#ifdef CONFIG_MINI_OS_THREAD_DETACH
+#define MINI_OS_THREAD_DETACH
+#endif
 #endif /* MINI_CONFIG_H */

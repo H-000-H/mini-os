@@ -1,17 +1,27 @@
 /*
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file test_mem.c
- * @brief Host test for the static buffer pool (mem.h / mem.c)
+ * @brief Host test for the malloc/free model allocator (memory.h / memory.c)
  *
  * Build & run (host, no ARM toolchain needed):
- *   clang -std=c11 -Wall -Wextra -Itest -Iinc test/test_mem.c src/mem.c \
+ *   clang -std=c11 -Wall -Wextra -Itest -Iinc -include redef.h test/test_mem.c src/memory.c \
  *         -o build/test_mem.exe && build/test_mem.exe
  *
- * test/redef.h shadows the real inc/redef.h (see that file for why).
+ * With slab (small-allocation path):
+ *   clang -std=c11 -Wall -Wextra -DCONFIG_OPEN_SLAB -DCONFIG_MINI_MALLOC_SLAB_PAGE_SIZE=256 \
+ *         -Itest -Iinc -include redef.h test/test_mem.c src/memory.c \
+ *         -o build/test_mem_slab.exe && build/test_mem_slab.exe
+ *
+ * -include redef.h 让 test/redef.h 宿主桩先于任何源文件注入, 靠 REDEF_H 保护宏
+ * 屏蔽 inc/redef.h (内含 Cortex-M 内联汇编, 宿主无法编译)。
  */
-#include "mem.h"
+#include "memory.h"
 #include "err.h"
+#ifdef CONFIG_OPEN_SLAB
+#include "mem_heap.h" /* MINI_OS_SLAB_PAGE_SIZE 等 slab 配置宏 */
+#endif
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -29,362 +39,459 @@ static int checks = 0;
         }                                                               \
     } while (0)
 
-_Alignas(8) static mini_uint8_t pool_mem[1024];
-_Alignas(8) static mini_uint8_t seg2_mem[700];
-_Alignas(8) static mini_uint8_t seg3_mem[256];
-_Alignas(8) static mini_uint8_t seg4_mem[256];
+/* slab 构建下 init 会从池首划走固定区, 池空闲上限 = 总量 - slab 区 */
+#ifdef CONFIG_OPEN_SLAB
+#define TEST_FREE_CAP(p, total) ((total) - (p).slab_size)
+#else
+#define TEST_FREE_CAP(p, total) (total)
+#endif
+
+/* Linker heap symbol stubs: 宿主构建没有链接脚本, 用一段静态缓冲模拟堆区:
+ * start 为缓冲首地址, end 紧随其后, MINI_OS_HEAP_SIZE 即缓冲大小。
+ * 启动构造器 (优先级 MINI_OS_MEMORY_PRESTRUCTOR) 会在 main 前接管它。 */
+char __mini_os_heap_start[8192] __attribute__((aligned(8)));
+char __mini_os_heap_end[1];
+
+_Alignas(8) static mini_os_uint8_t pool_mem[1024];
+_Alignas(8) static mini_os_uint8_t seg2_mem[700];
+_Alignas(8) static mini_os_uint8_t seg3_mem[256];
+_Alignas(8) static mini_os_uint8_t seg4_mem[256];
+#ifdef CONFIG_OPEN_SLAB
+_Alignas(8) static mini_os_uint8_t slab_pool_mem[2048];
+#endif
+
+/* ---------------------------------------------------------------------- */
+static void test_global_heap(void)
+{
+    void* p;
+    void* q;
+
+    printf("--- global heap (host stub region) ---\n");
+    /* 构造器已在 main 前接管桩堆区, 分配应当可用 */
+    p = mini_os_malloc(32u);
+    CHECK(p != MINI_OS_NULL);
+    if (p != MINI_OS_NULL)
+    {
+        memset(p, 0x5Au, 32u);
+        CHECK(((mini_os_uint8_t*)p)[31] == 0x5Au);
+    }
+    q = mini_os_malloc(64u);
+    CHECK(q != MINI_OS_NULL);
+    CHECK(q != p);
+    CHECK(mini_os_free(p) == MINI_OS_OK);
+    CHECK(mini_os_free(q) == MINI_OS_OK);
+    CHECK(mini_os_free(MINI_OS_NULL) == MINI_OS_ERR_INVAL);
+}
+
+/* ---------------------------------------------------------------------- */
+static void test_calloc(void)
+{
+    mini_os_uint8_t* p;
+    mini_os_size_t i;
+
+    printf("--- calloc (global heap) ---\n");
+    p = mini_os_calloc(4u, 64u); /* 256 字节清零 */
+    CHECK(p != MINI_OS_NULL);
+    if (p != MINI_OS_NULL)
+    {
+        for (i = 0u; i < 256u; i++)
+        {
+            CHECK(p[i] == 0u);
+        }
+        p[255] = 0xABu;
+        CHECK(mini_os_free(p) == MINI_OS_OK);
+    }
+    CHECK(mini_os_calloc(0u, 16u) == MINI_OS_NULL); /* 0 尺寸跟随 malloc 语义 */
+    CHECK(mini_os_calloc(4u, 0u) == MINI_OS_NULL);
+    CHECK(mini_os_calloc((mini_os_size_t)-1, 16u) == MINI_OS_NULL); /* 乘法溢出拒绝 */
+}
 
 /* ---------------------------------------------------------------------- */
 static void test_init_validation(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "test", pool_mem, sizeof(pool_mem) };
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "test", pool_mem, sizeof(pool_mem) };
 
     printf("--- init validation ---\n");
-    CHECK(buffer_pool_init(MINI_NULL, &cfg) == MINI_ERR_INVAL);
-    CHECK(buffer_pool_init(&pool, MINI_NULL) == MINI_ERR_INVAL);
+    CHECK(mini_os_memory_init(MINI_OS_NULL, &cfg) == MINI_OS_ERR_INVAL);
+    CHECK(mini_os_memory_init(&pool, MINI_OS_NULL) == MINI_OS_ERR_INVAL);
 
     {
-        buffer_pool_config_t null_mem_cfg = { "bad", MINI_NULL, sizeof(pool_mem) };
-        CHECK(buffer_pool_init(&pool, &null_mem_cfg) == MINI_ERR_INVAL);
+        mini_os_memory_config_t null_mem_cfg = { "bad", MINI_OS_NULL, sizeof(pool_mem) };
+        CHECK(mini_os_memory_init(&pool, &null_mem_cfg) == MINI_OS_ERR_INVAL);
     }
     {
-        buffer_pool_config_t tiny_cfg = { "tiny", pool_mem, 32 };
-        CHECK(buffer_pool_init(&pool, &tiny_cfg) == MINI_ERR_INVAL);
+        mini_os_memory_config_t tiny_cfg = { "tiny", pool_mem, 32 };
+        CHECK(mini_os_memory_init(&pool, &tiny_cfg) == MINI_OS_ERR_INVAL);
     }
 
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
-    CHECK(buffer_pool_size(&pool) == sizeof(pool_mem));
-    CHECK(buffer_pool_used(&pool) == 0u);
-    CHECK(buffer_pool_peak(&pool) == 0u);
-    CHECK(buffer_pool_free_space(&pool) == sizeof(pool_mem));
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    CHECK(mini_os_memory_size(&pool) == sizeof(pool_mem));
+    CHECK(mini_os_memory_used(&pool) == 0u);
+    CHECK(mini_os_memory_peak(&pool) == 0u);
+    CHECK(mini_os_memory_free_space(&pool) == TEST_FREE_CAP(pool, sizeof(pool_mem)));
     CHECK(strcmp(pool.name, "test") == 0);
-    buffer_pool_deinit(&pool);
+    CHECK(mini_os_memory_deinit(&pool) == MINI_OS_OK);
 }
 
 /* ---------------------------------------------------------------------- */
-static void test_simple_alloc_free_cycle(void)
+static void test_alloc_free_cycle(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "cycle", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* a;
-    buffer_block_t* b;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "cycle", pool_mem, sizeof(pool_mem) };
+    void* a;
+    void* b;
 
     printf("--- alloc/free cycle ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
 
-    a = buffer_pool_alloc(&pool, 64);
-    CHECK(a != MINI_NULL);
-    if (a != MINI_NULL)
+    a = mini_os_memory_alloc(&pool, 64u);
+    CHECK(a != MINI_OS_NULL);
+    if (a != MINI_OS_NULL)
     {
-        CHECK(a->capacity >= 64u);
-        CHECK((mini_size_t)((mini_uint8_t*)a->data - pool_mem) < sizeof(pool_mem));
-        CHECK((mini_size_t)((mini_uint8_t*)a->raw - pool_mem) < sizeof(pool_mem));
-        CHECK(((mini_size_t)a->data % 8u) == 0u); /* BUFF_POOL_ALIGN_SIZE */
-        CHECK(buffer_pool_used(&pool) == 1u);
-        CHECK(buffer_pool_peak(&pool) == 1u);
+        CHECK((((mini_os_size_t)a) % 8u) == 0u); /* malloc 语义: 8 对齐裸指针 */
+        CHECK((mini_os_uint8_t*)a >= pool_mem);
+        CHECK((mini_os_uint8_t*)a + 64u <= pool_mem + sizeof(pool_mem));
+        CHECK(mini_os_memory_used(&pool) == 1u);
+        CHECK(mini_os_memory_peak(&pool) == 1u);
     }
 
-    b = buffer_pool_alloc(&pool, 64);
-    CHECK(b != MINI_NULL);
-    if (b != MINI_NULL)
+    b = mini_os_memory_alloc(&pool, 64u);
+    CHECK(b != MINI_OS_NULL);
+    if (b != MINI_OS_NULL)
     {
         CHECK(b != a);
-        CHECK(buffer_pool_used(&pool) == 2u);
-        CHECK(buffer_pool_peak(&pool) == 2u);
-        CHECK(buffer_pool_free_space(&pool) < sizeof(pool_mem));
+        CHECK(mini_os_memory_used(&pool) == 2u);
+        CHECK(mini_os_memory_peak(&pool) == 2u);
+        CHECK(mini_os_memory_free_space(&pool) < sizeof(pool_mem));
     }
 
-    buffer_pool_free(&pool, a);
-    CHECK(buffer_pool_used(&pool) == 1u);
-    buffer_pool_free(&pool, b);
-    CHECK(buffer_pool_used(&pool) == 0u);
-    /* both blocks were adjacent: coalesced back into one whole pool block */
-    CHECK(buffer_pool_free_space(&pool) == sizeof(pool_mem));
-    buffer_pool_deinit(&pool);
+    CHECK(mini_os_memory_free(&pool, a) == MINI_OS_OK);
+    CHECK(mini_os_memory_used(&pool) == 1u);
+    CHECK(mini_os_memory_free(&pool, b) == MINI_OS_OK);
+    CHECK(mini_os_memory_used(&pool) == 0u);
+    /* 两块地址相邻: 释放后合并回整池单块 */
+    CHECK(mini_os_memory_free_space(&pool) == TEST_FREE_CAP(pool, sizeof(pool_mem)));
+    mini_os_memory_deinit(&pool);
 }
 
 /* ---------------------------------------------------------------------- */
-static void test_block_io(void)
+static void test_data_roundtrip(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "io", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* blk;
-    mini_uint8_t wbuf[64];
-    mini_uint8_t rbuf[64];
-    size_t actual = 0u;
-    size_t cap;
-    size_t i;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "data", pool_mem, sizeof(pool_mem) };
+    void* blk;
+    mini_os_uint8_t pattern[64];
+    mini_os_size_t i;
 
-    printf("--- block write/read ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
-    blk = buffer_pool_alloc(&pool, 64);
-    CHECK(blk != MINI_NULL);
-    if (blk == MINI_NULL)
+    printf("--- data roundtrip (no FIFO, caller owns bytes) ---\n");
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    blk = mini_os_memory_alloc(&pool, 64u);
+    CHECK(blk != MINI_OS_NULL);
+    if (blk == MINI_OS_NULL)
+    {
         return;
-    cap = blk->capacity;
+    }
+    /* 直接按裸指针读写, 无块内指针管理 */
+    for (i = 0u; i < 64u; i++)
+    {
+        pattern[i] = (mini_os_uint8_t)(0xA0u + i);
+    }
+    memcpy(blk, pattern, sizeof(pattern));
+    CHECK(memcmp(blk, pattern, sizeof(pattern)) == 0);
+    memset(blk, 0x5Au, 64u);
+    CHECK(((mini_os_uint8_t*)blk)[0] == 0x5Au);
+    CHECK(((mini_os_uint8_t*)blk)[63] == 0x5Au);
 
-    /* small write / read roundtrip */
-    for (i = 0u; i < 40u; i++)
-        wbuf[i] = (mini_uint8_t)i;
-    CHECK(buffer_block_write(blk, wbuf, 40u, &actual) == MINI_OK);
-    CHECK(actual == 40u);
-    CHECK(buffer_block_used(blk) == 40u);
-    CHECK(buffer_block_space(blk) == cap - 40u);
-    actual = 0u;
-    memset(rbuf, 0, sizeof(rbuf));
-    CHECK(buffer_block_read(blk, rbuf, 40u, &actual) == MINI_OK);
-    CHECK(actual == 40u);
-    CHECK(memcmp(rbuf, wbuf, 40u) == 0);
-    CHECK(buffer_block_used(blk) == 0u);
+    mini_os_memory_free(&pool, blk);
+    CHECK(mini_os_memory_used(&pool) == 0u);
 
-    /* write past the wrap boundary, then a truncated second write */
-    for (i = 0u; i < 60u; i++)
-        wbuf[i] = (mini_uint8_t)(0xA0u + i);
-    CHECK(buffer_block_write(blk, wbuf, 60u, &actual) == MINI_OK);
-    CHECK(actual == 60u);
-    CHECK(buffer_block_write(blk, wbuf, 60u, &actual) == MINI_OK);
-    CHECK(actual == cap - 60u); /* truncated to remaining space */
-    CHECK(buffer_block_used(blk) == cap);
-    actual = 0u;
-    memset(rbuf, 0, sizeof(rbuf));
-    CHECK(buffer_block_read(blk, rbuf, cap, &actual) == MINI_OK);
-    CHECK(actual == cap);
-    CHECK(memcmp(rbuf, wbuf, 60u) == 0);
-    CHECK(memcmp(rbuf + 60u, wbuf, cap - 60u) == 0);
-
-    /* reset clears the ring */
-    buffer_block_reset(blk);
-    CHECK(buffer_block_used(blk) == 0u);
-    CHECK(buffer_block_space(blk) == cap);
-
-    /* wrap-read: tail pushed across the boundary, a read crosses it */
-    for (i = 0u; i < 60u; i++)
-        wbuf[i] = (mini_uint8_t)(0x10u + i);
-    CHECK(buffer_block_write(blk, wbuf, 60u, &actual) == MINI_OK);
-    CHECK(actual == 60u);
-    actual = 0u;
-    memset(rbuf, 0, sizeof(rbuf));
-    CHECK(buffer_block_read(blk, rbuf, 60u, &actual) == MINI_OK);
-    CHECK(actual == 60u);
-    CHECK(memcmp(rbuf, wbuf, 60u) == 0);
-    CHECK(buffer_block_used(blk) == 0u);
-
-    buffer_pool_free(&pool, blk);
-    buffer_pool_deinit(&pool);
+    /* 释放后重新分配: 同地址复用 (整池唯一空闲块) */
+    blk = mini_os_memory_alloc(&pool, 32u);
+    CHECK(blk != MINI_OS_NULL);
+    mini_os_memory_free(&pool, blk);
+    mini_os_memory_deinit(&pool);
 }
 
 /* ---------------------------------------------------------------------- */
 static void test_peak_and_stats(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "peak", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* a;
-    buffer_block_t* b;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "peak", pool_mem, sizeof(pool_mem) };
+    void* a;
+    void* b;
 
     printf("--- peak / used tracking ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
-    a = buffer_pool_alloc(&pool, 32);
-    b = buffer_pool_alloc(&pool, 32);
-    CHECK(a != MINI_NULL && b != MINI_NULL);
-    CHECK(buffer_pool_used(&pool) == 2u);
-    CHECK(buffer_pool_peak(&pool) == 2u);
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    a = mini_os_memory_alloc(&pool, 32u);
+    b = mini_os_memory_alloc(&pool, 32u);
+    CHECK(a != MINI_OS_NULL && b != MINI_OS_NULL);
+    CHECK(mini_os_memory_used(&pool) == 2u);
+    CHECK(mini_os_memory_peak(&pool) == 2u);
 
-    buffer_pool_free(&pool, a);
-    CHECK(buffer_pool_used(&pool) == 1u);
-    CHECK(buffer_pool_peak(&pool) == 2u); /* peak does not drop */
+    mini_os_memory_free(&pool, a);
+    CHECK(mini_os_memory_used(&pool) == 1u);
+    CHECK(mini_os_memory_peak(&pool) == 2u); /* 峰值不随释放下降 */
 
-    buffer_pool_reset_peak(&pool);
-    CHECK(buffer_pool_peak(&pool) == 1u);
+    mini_os_memory_reset_peak(&pool);
+    CHECK(mini_os_memory_peak(&pool) == 1u);
 
-    a = buffer_pool_alloc(&pool, 32);
-    CHECK(a != MINI_NULL);
-    CHECK(buffer_pool_peak(&pool) == 2u); /* climbed again */
+    a = mini_os_memory_alloc(&pool, 32u);
+    CHECK(a != MINI_OS_NULL);
+    CHECK(mini_os_memory_peak(&pool) == 2u); /* 重新攀升 */
 
-    buffer_pool_free(&pool, a);
-    buffer_pool_free(&pool, b);
-    buffer_pool_deinit(&pool);
+    mini_os_memory_free(&pool, a);
+    mini_os_memory_free(&pool, b);
+    mini_os_memory_deinit(&pool);
 }
 
 /* ---------------------------------------------------------------------- */
 static void test_isr_variants(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "isr", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* blk;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "isr", pool_mem, sizeof(pool_mem) };
+    void* blk;
 
     printf("--- ISR variants ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
-    blk = buffer_pool_alloc_isr(&pool, 64);
-    CHECK(blk != MINI_NULL);
-    CHECK(buffer_pool_used(&pool) == 1u);
-    buffer_pool_free_isr(&pool, blk);
-    CHECK(buffer_pool_used(&pool) == 0u);
-    CHECK(buffer_pool_free_space(&pool) == sizeof(pool_mem));
-    buffer_pool_deinit(&pool);
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    blk = mini_os_memory_alloc_isr(&pool, 64u);
+    CHECK(blk != MINI_OS_NULL);
+    CHECK(mini_os_memory_used(&pool) == 1u);
+    mini_os_memory_free_isr(&pool, blk);
+    CHECK(mini_os_memory_used(&pool) == 0u);
+    CHECK(mini_os_memory_free_space(&pool) == TEST_FREE_CAP(pool, sizeof(pool_mem)));
+    mini_os_memory_deinit(&pool);
 }
 
 /* ---------------------------------------------------------------------- */
 static void test_exhaustion(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "exh", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* blocks[32];
-    mini_size_t count = 0u;
-    mini_size_t i;
-    mini_size_t j;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "exh", pool_mem, sizeof(pool_mem) };
+    void* blocks[32];
+    mini_os_size_t count = 0u;
+    mini_os_size_t i;
+    mini_os_size_t j;
 
     printf("--- exhaustion ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
     while (count < 32u)
     {
-        buffer_block_t* blk = buffer_pool_alloc(&pool, 200u);
-        if (blk == MINI_NULL)
+        void* blk = mini_os_memory_alloc(&pool, 200u);
+        if (blk == MINI_OS_NULL)
+        {
             break;
+        }
         for (j = 0u; j < count; j++)
-            CHECK(blocks[j] != blk); /* no aliasing */
+        {
+            CHECK(blocks[j] != blk); /* 无重叠分配 */
+        }
         blocks[count++] = blk;
     }
-    CHECK(count >= 4u); /* 1024 bytes / ~240 per 200-byte block */
-    CHECK(buffer_pool_used(&pool) == count);
-    CHECK(buffer_pool_peak(&pool) == count);
-    CHECK(buffer_pool_alloc(&pool, 200u) == MINI_NULL); /* truly exhausted */
+    CHECK(count >= (mini_os_size_t)(TEST_FREE_CAP(pool, sizeof(pool_mem)) / 224u)); /* 空闲区/每块(200+块头, 宿主 64 位块头 24) */
+    CHECK(mini_os_memory_used(&pool) == count);
+    CHECK(mini_os_memory_peak(&pool) == count);
+    CHECK(mini_os_memory_alloc(&pool, 200u) == MINI_OS_NULL); /* 真正耗尽 */
 
     for (i = 0u; i < count; i++)
-        buffer_pool_free(&pool, blocks[i]);
-    CHECK(buffer_pool_used(&pool) == 0u);
-    CHECK(buffer_pool_free_space(&pool) == sizeof(pool_mem));
-    buffer_pool_deinit(&pool);
+    {
+        mini_os_memory_free(&pool, blocks[i]);
+    }
+    CHECK(mini_os_memory_used(&pool) == 0u);
+    CHECK(mini_os_memory_free_space(&pool) == TEST_FREE_CAP(pool, sizeof(pool_mem)));
+    mini_os_memory_deinit(&pool);
 }
 
 /* ---------------------------------------------------------------------- */
 static void test_expand(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "expand", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* blk;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "expand", pool_mem, sizeof(pool_mem) };
+    void* blk;
 
     printf("--- expand ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
-    CHECK(buffer_pool_alloc(&pool, 1000u) == MINI_NULL); /* larger than the 1024 pool */
-    CHECK(buffer_pool_expand(&pool, seg2_mem, sizeof(seg2_mem)) == MINI_OK);
-    CHECK(buffer_pool_size(&pool) == sizeof(pool_mem) + sizeof(seg2_mem));
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    CHECK(mini_os_memory_alloc(&pool, 1008u) == MINI_OS_NULL); /* 1008+块头 > 1024 池 */
+    CHECK(mini_os_memory_expand(&pool, seg2_mem, sizeof(seg2_mem)) == MINI_OS_OK);
+    CHECK(mini_os_memory_size(&pool) == sizeof(pool_mem) + sizeof(seg2_mem));
 
-    blk = buffer_pool_alloc(&pool, 600u);
-    CHECK(blk != MINI_NULL);
-    if (blk != MINI_NULL)
+    blk = mini_os_memory_alloc(&pool, 600u);
+    CHECK(blk != MINI_OS_NULL);
+    if (blk != MINI_OS_NULL)
     {
-        mini_uint8_t wbuf[600];
-        mini_uint8_t rbuf[600];
-        size_t actual = 0u;
-        memset(wbuf, 0x5Au, sizeof(wbuf));
-        CHECK(buffer_block_write(blk, wbuf, sizeof(wbuf), &actual) == MINI_OK);
-        CHECK(actual == sizeof(wbuf));
-        actual = 0u;
-        CHECK(buffer_block_read(blk, rbuf, sizeof(rbuf), &actual) == MINI_OK);
-        CHECK(memcmp(rbuf, wbuf, sizeof(wbuf)) == 0);
-        buffer_pool_free(&pool, blk);
+        memset(blk, 0x5Au, 600u);
+        CHECK(((mini_os_uint8_t*)blk)[599] == 0x5Au);
+        mini_os_memory_free(&pool, blk);
     }
 
-    /* segment table full: pool_mem + seg2_mem + 2 more, then refuse */
-    CHECK(buffer_pool_expand(&pool, seg3_mem, sizeof(seg3_mem)) == MINI_OK);
-    CHECK(buffer_pool_expand(&pool, seg4_mem, sizeof(seg4_mem)) == MINI_OK);
-    CHECK(buffer_pool_expand(&pool, seg2_mem, sizeof(seg2_mem)) == MINI_ERR_NOSPC);
+    /* 段表满: 再加两段后拒绝 */
+    CHECK(mini_os_memory_expand(&pool, seg3_mem, sizeof(seg3_mem)) == MINI_OS_OK);
+    CHECK(mini_os_memory_expand(&pool, seg4_mem, sizeof(seg4_mem)) == MINI_OS_OK);
+    CHECK(mini_os_memory_expand(&pool, seg2_mem, sizeof(seg2_mem)) == MINI_OS_ERR_NOSPC);
 
-    /* invalid expansion args */
-    CHECK(buffer_pool_expand(&pool, MINI_NULL, 256u) == MINI_ERR_INVAL);
-    CHECK(buffer_pool_expand(&pool, seg2_mem, 32u) == MINI_ERR_INVAL);
-    buffer_pool_deinit(&pool);
+    /* 非法扩容入参 */
+    CHECK(mini_os_memory_expand(&pool, MINI_OS_NULL, 256u) == MINI_OS_ERR_INVAL);
+    CHECK(mini_os_memory_expand(&pool, seg2_mem, 32u) == MINI_OS_ERR_INVAL);
+    mini_os_memory_deinit(&pool);
 }
 
 /* ---------------------------------------------------------------------- */
 static void test_invalid_args(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "args", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* blk;
-    size_t actual = 0u;
-    mini_uint8_t one = 1u;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "args", pool_mem, sizeof(pool_mem) };
 
     printf("--- invalid args ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
 
-    CHECK(buffer_pool_alloc(MINI_NULL, 32u) == MINI_NULL);
-    CHECK(buffer_pool_alloc(&pool, 0u) == MINI_NULL);
-    buffer_pool_free(MINI_NULL, MINI_NULL); /* must not crash */
-    buffer_pool_free(&pool, MINI_NULL);     /* must not crash */
+    CHECK(mini_os_memory_alloc(MINI_OS_NULL, 32u) == MINI_OS_NULL);
+    CHECK(mini_os_memory_alloc(&pool, 0u) == MINI_OS_NULL);
+    CHECK(mini_os_memory_free(MINI_OS_NULL, MINI_OS_NULL) == MINI_OS_ERR_INVAL);
+    CHECK(mini_os_memory_free(&pool, MINI_OS_NULL) == MINI_OS_ERR_INVAL);
 
-    blk = buffer_pool_alloc(&pool, 32u);
-    CHECK(blk != MINI_NULL);
-    if (blk != MINI_NULL)
-    {
-        CHECK(buffer_block_write(MINI_NULL, &one, 1u, &actual) == MINI_ERR_INVAL);
-        CHECK(buffer_block_write(blk, MINI_NULL, 1u, &actual) == MINI_ERR_INVAL);
-        CHECK(buffer_block_read(MINI_NULL, &one, 1u, &actual) == MINI_ERR_INVAL);
-        CHECK(buffer_block_read(blk, MINI_NULL, 1u, &actual) == MINI_ERR_INVAL);
-        CHECK(buffer_block_used(MINI_NULL) == 0u);
-        CHECK(buffer_block_space(MINI_NULL) == 0u);
-        buffer_block_reset(MINI_NULL); /* must not crash */
-        buffer_pool_free(&pool, blk);
-    }
-
-    CHECK(buffer_pool_size(MINI_NULL) == 0u);
-    CHECK(buffer_pool_free_space(MINI_NULL) == 0u);
-    CHECK(buffer_pool_used(MINI_NULL) == 0u);
-    CHECK(buffer_pool_peak(MINI_NULL) == 0u);
-    buffer_pool_reset_peak(MINI_NULL); /* must not crash */
-    buffer_pool_deinit(MINI_NULL);     /* must not crash */
-    buffer_pool_deinit(&pool);
+    CHECK(mini_os_memory_size(MINI_OS_NULL) == 0u);
+    CHECK(mini_os_memory_free_space(MINI_OS_NULL) == 0u);
+    CHECK(mini_os_memory_used(MINI_OS_NULL) == 0u);
+    CHECK(mini_os_memory_peak(MINI_OS_NULL) == 0u);
+    CHECK(mini_os_memory_reset_peak(MINI_OS_NULL) == MINI_OS_ERR_INVAL);
+    CHECK(mini_os_memory_deinit(MINI_OS_NULL) == MINI_OS_ERR_INVAL);
+    CHECK(mini_os_memory_deinit(&pool) == MINI_OS_OK);
 }
 
 /* ---------------------------------------------------------------------- */
 static void test_deinit_reinit(void)
 {
-    buffer_pool_t pool;
-    buffer_pool_config_t cfg = { "reinit", pool_mem, sizeof(pool_mem) };
-    buffer_block_t* blk;
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "reinit", pool_mem, sizeof(pool_mem) };
+    void* blk;
 
     printf("--- deinit / reinit ---\n");
-    CHECK(buffer_pool_init(&pool, &cfg) == MINI_OK);
-    blk = buffer_pool_alloc(&pool, 64u);
-    CHECK(blk != MINI_NULL);
-    buffer_pool_deinit(&pool);
-    CHECK(buffer_pool_size(&pool) == 0u);
-    CHECK(buffer_pool_used(&pool) == 0u);
-    CHECK(buffer_pool_free_space(&pool) == 0u);
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    blk = mini_os_memory_alloc(&pool, 64u);
+    CHECK(blk != MINI_OS_NULL);
+    mini_os_memory_deinit(&pool);
+    CHECK(mini_os_memory_size(&pool) == 0u);
+    CHECK(mini_os_memory_used(&pool) == 0u);
+    CHECK(mini_os_memory_free_space(&pool) == 0u);
 
-    /* re-init with a different name works; old block handle is dead */
+    /* 换名重新初始化; 旧指针已失效 */
     {
-        buffer_pool_config_t renamed = { "R", pool_mem, sizeof(pool_mem) };
-        CHECK(buffer_pool_init(&pool, &renamed) == MINI_OK);
+        mini_os_memory_config_t renamed = { "R", pool_mem, sizeof(pool_mem) };
+        CHECK(mini_os_memory_init(&pool, &renamed) == MINI_OS_OK);
         CHECK(strcmp(pool.name, "R") == 0);
     }
-    CHECK(buffer_pool_free_space(&pool) == sizeof(pool_mem));
-    blk = buffer_pool_alloc(&pool, 128u);
-    CHECK(blk != MINI_NULL);
-    buffer_pool_free(&pool, blk);
-    buffer_pool_deinit(&pool);
+    CHECK(mini_os_memory_free_space(&pool) == TEST_FREE_CAP(pool, sizeof(pool_mem)));
+    blk = mini_os_memory_alloc(&pool, 128u);
+    CHECK(blk != MINI_OS_NULL);
+    mini_os_memory_free(&pool, blk);
+    mini_os_memory_deinit(&pool);
 }
+
+/* ---------------------------------------------------------------------- */
+#ifdef CONFIG_OPEN_SLAB
+static void test_slab(void)
+{
+    mini_os_memory_t pool;
+    mini_os_memory_config_t cfg = { "slab", slab_pool_mem, sizeof(slab_pool_mem) };
+    void* blocks[32];
+    void* overflow;
+    mini_os_size_t base_free;
+    mini_os_size_t slot_total;
+    mini_os_size_t i;
+    mini_os_size_t j;
+
+    printf("--- slab small allocation (CONFIG_OPEN_SLAB, fixed zone) ---\n");
+    /* 池小于 页大小*比例 (256*4=1KB): 配置了 slab 却划不出 1 页, init 直接失败 */
+    {
+        _Alignas(8) static mini_os_uint8_t tiny_mem[512];
+        mini_os_memory_config_t tiny_cfg = { "tiny", tiny_mem, sizeof(tiny_mem) };
+
+        CHECK(mini_os_memory_init(&pool, &tiny_cfg) == MINI_OS_ERR_NOMEM);
+    }
+    CHECK(mini_os_memory_init(&pool, &cfg) == MINI_OS_OK);
+    /* init 一次性划出固定区: 页数 = min(PAGE_MAX, (2048/4)/256) = 2, 无页头共 32 槽 */
+    CHECK(pool.slab_page_count == 2u);
+    CHECK(pool.slab_size == 2u * MINI_OS_SLAB_PAGE_SIZE);
+    slot_total = pool.slab_size / MINI_OS_SLAB_MINI_BYTES;
+    CHECK(slot_total == 32u);
+    /* freelist 区从 slab 区之后开始, 空闲字节 = 池总 - slab 区 */
+    base_free = mini_os_memory_free_space(&pool);
+    CHECK(base_free == sizeof(slab_pool_mem) - pool.slab_size);
+
+    /* 填满固定区全部槽 (首个小分配不再触发切页) */
+    for (i = 0u; i < slot_total; i++)
+    {
+        blocks[i] = mini_os_memory_alloc(&pool, 16u);
+        CHECK(blocks[i] != MINI_OS_NULL);
+        CHECK((((mini_os_size_t)blocks[i]) % 8u) == 0u);
+        for (j = 0u; j < i; j++)
+        {
+            CHECK(blocks[j] != blocks[i]);
+        }
+    }
+    CHECK(pool.slab_page_count == 2u); /* 全程不再切页 */
+    CHECK(mini_os_memory_used(&pool) == slot_total);
+
+    /* 槽满: 下一个小分配回退 freelist */
+    overflow = mini_os_memory_alloc(&pool, 16u);
+    CHECK(overflow != MINI_OS_NULL);
+    for (j = 0u; j < slot_total; j++)
+    {
+        CHECK(blocks[j] != overflow);
+    }
+    CHECK(pool.slab_page_count == 2u);
+
+    /* 释放一个槽 -> next 指针重写回空槽链 -> 下次小分配立即复用 (LIFO) */
+    mini_os_memory_free(&pool, blocks[7]);
+    CHECK(mini_os_memory_used(&pool) == slot_total);
+    {
+        void* reused = mini_os_memory_alloc(&pool, 16u);
+        CHECK(reused == blocks[7]);
+        blocks[7] = reused;
+    }
+
+    /* 全部归还 */
+    for (i = 0u; i < slot_total; i++)
+    {
+        mini_os_memory_free(&pool, blocks[i]);
+    }
+    mini_os_memory_free(&pool, overflow);
+    CHECK(mini_os_memory_used(&pool) == 0u);
+    /* 固定区常驻不归还 freelist: 空闲字节回到 init 后水平 */
+    CHECK(mini_os_memory_free_space(&pool) == base_free);
+    mini_os_memory_deinit(&pool);
+}
+#endif /* CONFIG_OPEN_SLAB */
 
 /* ---------------------------------------------------------------------- */
 int main(void)
 {
-    printf("mini-os buffer pool host test\n");
-    printf("pool_mem=%zu bytes, seg2_mem=%zu bytes\n", sizeof(pool_mem), sizeof(seg2_mem));
+    printf("mini-os memory (malloc/free model) host test\n");
+#ifdef CONFIG_OPEN_SLAB
+    printf("CONFIG_OPEN_SLAB on: page=%u max_pages=%u proportion=%u\n",
+           (unsigned)MINI_OS_SLAB_PAGE_SIZE, (unsigned)MINI_OS_SLAB_PAGE_MAX, (unsigned)MINI_OS_SLAB_PROPORTION);
+#endif
 
+    test_global_heap();
+    test_calloc();
     test_init_validation();
-    test_simple_alloc_free_cycle();
-    test_block_io();
+    test_alloc_free_cycle();
+    test_data_roundtrip();
     test_peak_and_stats();
     test_isr_variants();
     test_exhaustion();
     test_expand();
     test_invalid_args();
     test_deinit_reinit();
+#ifdef CONFIG_OPEN_SLAB
+    test_slab();
+#endif
 
     printf("----------------------------------------------\n");
     printf("%d checks, %d failure(s)\n", checks, failures);
     if (failures == 0)
+    {
         printf("ALL TESTS PASSED\n");
+    }
     return failures == 0 ? 0 : 1;
 }

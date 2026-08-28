@@ -17,7 +17,7 @@ set(MINI_OS_INC
 )
 
 set(MINI_OS_SRC
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/mem.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/thread.c
 )
 

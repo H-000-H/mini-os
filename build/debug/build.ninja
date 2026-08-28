@@ -49,9 +49,9 @@ cmake_ninja_workdir = C$:/mini-tree/mini-os/build/debug/
 
 build cmake_object_order_depends_target_mini-os: phony || .
 
-build CMakeFiles/mini-os.dir/src/mem.c.obj: C_COMPILER__mini-os_unscanned_Debug C$:/mini-tree/mini-os/src/mem.c || cmake_object_order_depends_target_mini-os
+build CMakeFiles/mini-os.dir/src/memory.c.obj: C_COMPILER__mini-os_unscanned_Debug C$:/mini-tree/mini-os/src/memory.c || cmake_object_order_depends_target_mini-os
   CONFIG = Debug
-  DEP_FILE = CMakeFiles\mini-os.dir\src\mem.c.obj.d
+  DEP_FILE = CMakeFiles\mini-os.dir\src\memory.c.obj.d
   FLAGS = -g -mcpu=cortex-m3 -mthumb
   INCLUDES = -IC:/mini-tree/mini-os/inc
   OBJECT_DIR = CMakeFiles\mini-os.dir
@@ -79,7 +79,7 @@ build CMakeFiles/mini-os.dir/src/thread.c.obj: C_COMPILER__mini-os_unscanned_Deb
 #############################################
 # Link the static library libmini-os.a
 
-build libmini-os.a: C_STATIC_LIBRARY_LINKER__mini-os_Debug CMakeFiles/mini-os.dir/src/mem.c.obj CMakeFiles/mini-os.dir/src/thread.c.obj
+build libmini-os.a: C_STATIC_LIBRARY_LINKER__mini-os_Debug CMakeFiles/mini-os.dir/src/memory.c.obj CMakeFiles/mini-os.dir/src/thread.c.obj
   CONFIG = Debug
   LANGUAGE_COMPILE_FLAGS = -g
   OBJECT_DIR = CMakeFiles\mini-os.dir

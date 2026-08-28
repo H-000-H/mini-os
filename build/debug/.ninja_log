@@ -1,8 +1,12 @@
 # ninja log v7
-19	64	8095283885869967	CMakeFiles/mini-os.dir/src/thread.c.obj	9cacc6d729214b88
-14	91	8095283885814482	CMakeFiles/mini-os.dir/src/mem.c.obj	ee76dbe96909bb0
-91	158	8095283886583809	libmini-os.a	9334f2115216cb1c
-30	134	8095285794473416	CMakeFiles/mini-os.dir/src/mem.c.obj	ee76dbe96909bb0
-135	211	8095285795519524	libmini-os.a	9334f2115216cb1c
-31	146	8095288783681677	CMakeFiles/mini-os.dir/src/mem.c.obj	ee76dbe96909bb0
-147	226	8095288784845871	libmini-os.a	9334f2115216cb1c
+38	108	8096202966063505	CMakeFiles/mini-os.dir/src/thread.c.obj	9cacc6d729214b88
+32	110	8096202966013504	CMakeFiles/mini-os.dir/src/memory.c.obj	2ab91341c5eeea3f
+110	174	8096202966777376	libmini-os.a	e42166ee34f6ac87
+33	90	8096207470001842	CMakeFiles/mini-os.dir/src/thread.c.obj	9cacc6d729214b88
+28	124	8096207469951844	CMakeFiles/mini-os.dir/src/memory.c.obj	2ab91341c5eeea3f
+124	211	8096207470908035	libmini-os.a	e42166ee34f6ac87
+32	115	8096207639360971	CMakeFiles/mini-os.dir/src/memory.c.obj	2ab91341c5eeea3f
+116	188	8096207640191371	libmini-os.a	e42166ee34f6ac87
+109	327	8096248846798541	CMakeFiles/mini-os.dir/src/thread.c.obj	9cacc6d729214b88
+33	373	8096248846038366	CMakeFiles/mini-os.dir/src/memory.c.obj	2ab91341c5eeea3f
+374	591	8096248849452595	libmini-os.a	e42166ee34f6ac87

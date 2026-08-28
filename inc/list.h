@@ -14,7 +14,6 @@
 extern "C"
 {
 #endif
-#include "redef.h"
 typedef struct mini_os_list_node mini_os_list_t;
 /**
  * @brief mini-os Doubly linked list node
@@ -40,15 +39,15 @@ struct mini_os_single_list_node
 /**
  * @brief Initialize a mini-os list
  * @param[in] list_node The list to initialize
- * @return MINI_OK on success, negative error code on failure
+ * @return MINI_OS_OK on success, negative error code on failure
  */
-MINI_STATIC_INLINE mini_err_t mini_os_list_init(mini_os_list_t *list_node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_init(mini_os_list_t *list_node)
 {
-    if (list_node == MINI_NULL)
-        return MINI_ERR_INVAL;
+    if (list_node == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
     list_node->next = list_node;
     list_node->prev = list_node;
-    return MINI_OK;
+    return MINI_OS_OK;
 }
 
 /**
@@ -56,57 +55,57 @@ MINI_STATIC_INLINE mini_err_t mini_os_list_init(mini_os_list_t *list_node)
  * @param[in] next The next node in the list
  * @param[in] prev The previous node in the list
  * @param[in] node The node to add
- * @return MINI_OK on success, negative error code on failure
+ * @return MINI_OS_OK on success, negative error code on failure
  */
-MINI_STATIC_INLINE mini_err_t mini_os_list_add(struct mini_os_list_node *next, struct mini_os_list_node *prev, struct mini_os_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_add(struct mini_os_list_node *next, struct mini_os_list_node *prev, struct mini_os_list_node *node)
 {
-    if (next == MINI_NULL || prev == MINI_NULL || node == MINI_NULL)
-        return MINI_ERR_INVAL;
+    if (next == MINI_OS_NULL || prev == MINI_OS_NULL || node == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
     node->next = next;
     node->prev = prev;
     next->prev = node;
     prev->next = node;
-    return MINI_OK;
+    return MINI_OS_OK;
 }
 
 /*
  * @brief Add a node to the tail of a mini-os list
  * @param[in] new_node The node to add
- * @param[in] head The head of the list
- * @return MINI_OK on success, negative error code on failure
+ * @param[in] heap The heap of the list
+ * @return MINI_OS_OK on success, negative error code on failure
  */
-MINI_STATIC_INLINE mini_err_t mini_os_list_tail(struct mini_os_list_node *new_node, struct mini_os_list_node *head)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_tail(struct mini_os_list_node *new_node, struct mini_os_list_node *heap)
 {
-    if (new_node == MINI_NULL || head == MINI_NULL)
-        return MINI_ERR_INVAL;
-    return mini_os_list_add(head, head->prev, new_node);
+    if (new_node == MINI_OS_NULL || heap == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
+    return mini_os_list_add(heap, heap->prev, new_node);
 }
 
 /**
  * @brief Remove a node from a mini-os list
  * @param[in] node The node to remove
- * @return MINI_OK on success, negative error code on failure
+ * @return MINI_OS_OK on success, negative error code on failure
  */
-MINI_STATIC_INLINE mini_err_t mini_os_list_remove(struct mini_os_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_remove(struct mini_os_list_node *node)
 {
-    if (node == MINI_NULL)
-        return MINI_ERR_INVAL;
+    if (node == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
     node->next->prev = node->prev;
     node->prev->next = node->next;
     node->next = node;
     node->prev = node;
-    return MINI_OK;
+    return MINI_OS_OK;
 }
 
 /**
  * @brief Check if a mini-os list is empty
  * @param[in] list_node The list to check
- * @return MINI_TRUE if the list is empty, MINI_FALSE otherwise
+ * @return MINI_OS_TRUE if the list is empty, MINI_OS_FALSE otherwise
  */
-MINI_STATIC_INLINE mini_bool_t mini_os_list_is_empty(struct mini_os_list_node *list_node)
+MINI_OS_STATIC_INLINE mini_os_bool_t mini_os_list_is_empty(struct mini_os_list_node *list_node)
 {
-    if (list_node == MINI_NULL)
-        return MINI_FALSE;
+    if (list_node == MINI_OS_NULL)
+        return MINI_OS_FALSE;
     return (list_node->next == list_node);
 }
 
@@ -116,14 +115,14 @@ MINI_STATIC_INLINE mini_bool_t mini_os_list_is_empty(struct mini_os_list_node *l
 /**
  * @brief Initialize a mini-os single list node
  * @param[in] node The node to initialize
- * @return MINI_OK on success, MINI_ERR_INVAL if node is NULL
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL if node is NULL
  */
-MINI_STATIC_INLINE mini_err_t mini_os_single_list_init(struct mini_os_single_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_single_list_init(struct mini_os_single_list_node *node)
 {
-    if (node == MINI_NULL)
-        return MINI_ERR_INVAL;
+    if (node == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
     node->next = node;
-    return MINI_OK;
+    return MINI_OS_OK;
 }
 
 /**
@@ -131,63 +130,63 @@ MINI_STATIC_INLINE mini_err_t mini_os_single_list_init(struct mini_os_single_lis
  * @param[in] next The next node in the list
  * @param[in] prev The previous node in the list
  * @param[in] node The node to add
- * @return MINI_OK on success, MINI_ERR_INVAL if any parameter is NULL
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL if any parameter is NULL
  */
-MINI_STATIC_INLINE mini_err_t mini_os_single_list_add(struct mini_os_single_list_node *next, struct mini_os_single_list_node *prev, struct mini_os_single_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_single_list_add(struct mini_os_single_list_node *next, struct mini_os_single_list_node *prev, struct mini_os_single_list_node *node)
 {
-    if (next == MINI_NULL || prev == MINI_NULL || node == MINI_NULL)
-        return MINI_ERR_INVAL;
+    if (next == MINI_OS_NULL || prev == MINI_OS_NULL || node == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
     node->next = next;
     prev->next = node;
-    return MINI_OK;
+    return MINI_OS_OK;
 }
 
 /**
  * @brief Add a node to a mini-os single list before a given node
  * @param[in] prev The previous node in the list
  * @param[in] node The node to add
- * @return MINI_OK on success, MINI_ERR_INVAL if any parameter is NULL
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL if any parameter is NULL
  */
-MINI_STATIC_INLINE mini_err_t mini_os_single_list_add_after(struct mini_os_single_list_node *prev, struct mini_os_single_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_single_list_add_after(struct mini_os_single_list_node *prev, struct mini_os_single_list_node *node)
 {
     return mini_os_single_list_add(prev->next, prev, node);
 }
 
 /**
- * @brief Push a node to the head of a mini-os single list
- * @param[in] head The head of the list
+ * @brief Push a node to the heap of a mini-os single list
+ * @param[in] heap The heap of the list
  * @param[in] node The node to push
- * @return MINI_OK on success, MINI_ERR_INVAL if any parameter is NULL
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL if any parameter is NULL
  */
-MINI_STATIC_INLINE mini_err_t mini_os_single_list_push_head(struct mini_os_single_list_node *head, struct mini_os_single_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_single_list_push_heap(struct mini_os_single_list_node *heap, struct mini_os_single_list_node *node)
 {
-    return mini_os_single_list_add_after(head, node);
+    return mini_os_single_list_add_after(heap, node);
 }
 /**
  * @brief Remove a node from a mini-os single list
  * @param[in] node The node to remove
  * @param[in] prev The previous node in the list
- * @return MINI_OK on success, MINI_ERR_INVAL if any parameter is NULL
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL if any parameter is NULL
  */
-MINI_STATIC_INLINE mini_err_t mini_os_single_list_remove(struct mini_os_single_list_node *node, struct mini_os_single_list_node *prev)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_single_list_remove(struct mini_os_single_list_node *node, struct mini_os_single_list_node *prev)
 {
-    if (node == MINI_NULL || prev == MINI_NULL)
-        return MINI_ERR_INVAL;
+    if (node == MINI_OS_NULL || prev == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
     prev->next = node->next;
     node->next = node;
-    return MINI_OK;
+    return MINI_OS_OK;
 }
 
 /**
  * @brief Check if a mini-os single list is empty
  * @param[in] node The node to check
- * @return MINI_TRUE if the list is empty, MINI_FALSE otherwise
+ * @return MINI_OS_TRUE if the list is empty, MINI_OS_FALSE otherwise
  */
-MINI_STATIC_INLINE mini_bool_t mini_os_single_list_is_empty(struct mini_os_single_list_node *node)
+MINI_OS_STATIC_INLINE mini_os_bool_t mini_os_single_list_is_empty(struct mini_os_single_list_node *node)
 {
-    if (node == MINI_NULL)
-        return MINI_FALSE;
-    return (node->next == node) ? MINI_TRUE : MINI_FALSE;
+    if (node == MINI_OS_NULL)
+        return MINI_OS_FALSE;
+    return (node->next == node) ? MINI_OS_TRUE : MINI_OS_FALSE;
 }
 
 #if defined(__cplusplus)
