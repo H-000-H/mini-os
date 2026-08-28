@@ -218,11 +218,127 @@ static mini_os_bool_t mini_os_memory_ptr_in_segments(const struct mini_os_memory
 }
 
 /* -------------------------------------------------------------------------- */
+/* Slab size classes (shared by CONFIG_OPEN_SLAB / CONFIG_MINI_OS_SLAB_STATIC) */
+/* One page (MINI_OS_SLAB_PAGE_SIZE) per class: class sizes are               */
+/* 16/32/64/128/256 [, 512], page i serves class (i %% class count) so the    */
+/* class sequence repeats every count pages. Free slots embed a next pointer; */
+/* when the matching class is exhausted the caller falls back to the free list.*/
+/* -------------------------------------------------------------------------- */
+#if defined(CONFIG_OPEN_SLAB) || defined(CONFIG_MINI_OS_SLAB_STATIC)
+
+/**
+ * @brief Map a request size to its size class index
+ * @param[in] size requested bytes
+ * @return class index 0..CLASS_COUNT-1; CLASS_COUNT when size exceeds the max
+ *         class (caller goes straight to the free list)
+ */
+static mini_os_uint32_t mini_os_slab_class_of(mini_os_size_t size)
+{
+    mini_os_uint32_t cls = 0;
+
+    while (cls + 1u < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT &&
+           size > ((mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls))
+    {
+        cls++;
+    }
+    if (size > ((mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls))
+    {
+        return (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; /* over the max class */
+    }
+    return cls;
+}
+
+/**
+ * @brief Cut a slab zone into pages, each page into slots of its size class,
+ *        and link every slot as free
+ * @param[in] base zone base
+ * @param[in] zone_size zone bytes (a multiple of MINI_OS_SLAB_PAGE_SIZE)
+ * @param[out] free_list per-class free slot lists (CLASS_COUNT sentinels)
+ */
+static void mini_os_slab_zone_link(mini_os_uint8_t* base, mini_os_size_t zone_size, mini_os_single_list_t* free_list)
+{
+    mini_os_size_t seg_total = zone_size / MINI_OS_SLAB_PAGE_SIZE;
+    mini_os_size_t i;
+    mini_os_uint32_t cls;
+
+    for (i = 0; i < seg_total; i++)
+    {
+        mini_os_size_t slot_size = (mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << (i % MINI_OS_SLAB_CLASS_COUNT);
+        mini_os_size_t slot_total = MINI_OS_SLAB_PAGE_SIZE / slot_size;
+        mini_os_size_t j;
+
+        cls = (mini_os_uint32_t)(i % MINI_OS_SLAB_CLASS_COUNT);
+        for (j = 0; j < slot_total; j++)
+        {
+            mini_os_single_list_t* slot = (mini_os_single_list_t*)(base + i * MINI_OS_SLAB_PAGE_SIZE + j * slot_size);
+
+            mini_os_single_list_init(slot);
+            mini_os_single_list_push_heap(&free_list[cls], slot);
+        }
+    }
+}
+
+/**
+ * @brief Take one slot from the given size class
+ * @return slot pointer on success; MINI_OS_NULL when the class is exhausted
+ *         (caller falls back to the free list)
+ */
+static void* mini_os_slab_class_alloc(mini_os_single_list_t* free_list, mini_os_uint32_t cls)
+{
+    mini_os_single_list_t* slot;
+
+    if (mini_os_single_list_is_empty(&free_list[cls]) == MINI_OS_TRUE)
+    {
+        return MINI_OS_NULL;
+    }
+    slot = free_list[cls].next;
+    mini_os_single_list_remove(slot, &free_list[cls]);
+    /* Occupied: the next-pointer area yields to user data (the pointer is dropped) */
+    return (void*)slot;
+}
+
+/**
+ * @brief Return a slot to its size class (the class is derived from the page
+ *        the pointer lives in, so the caller needs no allocation metadata)
+ * @return 1 = freed; 0 = pointer not inside the zone;
+ *         -1 = inside the zone but not aligned to a slot boundary (rejected)
+ */
+static mini_os_int32_t mini_os_slab_zone_free(const mini_os_uint8_t* base, mini_os_size_t zone_size,
+                                              mini_os_single_list_t* free_list, void* ptr)
+{
+    const mini_os_uint8_t* p = (const mini_os_uint8_t*)ptr;
+    mini_os_size_t offset;
+    mini_os_size_t slot_size;
+    mini_os_uint32_t cls;
+
+    if (zone_size == 0 || p < base || p >= base + zone_size)
+    {
+        return 0;
+    }
+    offset = (mini_os_size_t)(p - base);
+    cls = (mini_os_uint32_t)((offset / MINI_OS_SLAB_PAGE_SIZE) % MINI_OS_SLAB_CLASS_COUNT);
+    slot_size = (mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls;
+    if ((offset % slot_size) != 0)
+    {
+        return -1; /* not aligned to a slot boundary: invalid pointer */
+    }
+    {
+        mini_os_single_list_t* slot = (mini_os_single_list_t*)ptr;
+
+        mini_os_single_list_init(slot);
+        mini_os_single_list_push_heap(&free_list[cls], slot);
+    }
+    return 1;
+}
+
+#endif /* CONFIG_OPEN_SLAB || CONFIG_MINI_OS_SLAB_STATIC */
+
+/* -------------------------------------------------------------------------- */
 /* Slab small-object allocation (CONFIG_OPEN_SLAB)                             */
 /* A fixed zone is carved once from the pool head at init and never returned;  */
-/* the zone is cut into fixed MINI_OS_SLAB_MINI_BYTES slots, free slots embed  */
-/* a next pointer. When the slots are exhausted slab_alloc returns             */
-/* MINI_OS_NULL and the caller falls back to the free list.                    */
+/* the zone is cut into size-class pages (see the shared helpers above). When  */
+/* the matching class is exhausted slab_alloc returns MINI_OS_NULL and the     */
+/* caller falls back to the free list.                                        */
 /* -------------------------------------------------------------------------- */
 #ifdef CONFIG_OPEN_SLAB
 
@@ -239,14 +355,12 @@ static mini_os_bool_t mini_os_memory_ptr_in_segments(const struct mini_os_memory
 static mini_os_err_t mini_os_memory_slab_zone_setup(struct mini_os_memory* pool, mini_os_uint8_t* base, mini_os_size_t len)
 {
     mini_os_size_t pages = MINI_OS_SLAB_PAGE_MAX;
-    mini_os_size_t slot_total;
-    mini_os_size_t i;
+    mini_os_uint32_t cls;
 
     if (pages * MINI_OS_SLAB_PAGE_SIZE > len / MINI_OS_SLAB_PROPORTION)
     {
         pages = (len / MINI_OS_SLAB_PROPORTION) / MINI_OS_SLAB_PAGE_SIZE;
     }
-    mini_os_single_list_init(&pool->slab_free);
     if (pages == 0)
     {
         return MINI_OS_ERR_NOMEM; /* pool smaller than page size * proportion; slab configured but 0 pages fit */
@@ -254,41 +368,35 @@ static mini_os_err_t mini_os_memory_slab_zone_setup(struct mini_os_memory* pool,
     pool->slab_base = base;
     pool->slab_size = pages * MINI_OS_SLAB_PAGE_SIZE;
     pool->slab_page_count = pages;
-
-    /* No page headers: the whole zone is cut into MINI_OS_SLAB_MINI_BYTES slots, all linked as free */
-    slot_total = pool->slab_size / MINI_OS_SLAB_MINI_BYTES;
-    for (i = 0; i < slot_total; i++)
+    for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
     {
-        mini_os_single_list_t* slot = (mini_os_single_list_t*)(base + i * MINI_OS_SLAB_MINI_BYTES);
-
-        mini_os_single_list_init(slot);
-        mini_os_single_list_push_heap(&pool->slab_free, slot);
+        mini_os_single_list_init(&pool->slab_free[cls]);
     }
+    /* Each page serves one size class (page i -> class i %% count), cut and linked as free */
+    mini_os_slab_zone_link(base, pool->slab_size, pool->slab_free);
     return MINI_OS_OK;
 }
 
 /**
- * @brief Take one object slot from the slab free list
+ * @brief Take one object slot from the size class matching size
  * @param[in] pool pool descriptor
- * @return slot pointer on success; MINI_OS_NULL when the free slot list is
- *         empty (caller falls back to the free list)
+ * @param[in] size requested bytes (rounded up to a size class)
+ * @return slot pointer on success; MINI_OS_NULL when the matching class is
+ *         empty or size exceeds the max class (caller falls back to the free list)
  */
-static void* mini_os_memory_slab_alloc(struct mini_os_memory* pool)
+static void* mini_os_memory_slab_alloc(struct mini_os_memory* pool, mini_os_size_t size)
 {
-    mini_os_single_list_t* slot;
+    mini_os_uint32_t cls = mini_os_slab_class_of(size);
 
-    if (mini_os_single_list_is_empty(&pool->slab_free) == MINI_OS_TRUE)
+    if (cls >= (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT)
     {
-        return MINI_OS_NULL; /* fixed-zone slots exhausted, no more pages carved */
+        return MINI_OS_NULL; /* over the max class, caller goes to the free list */
     }
-    slot = pool->slab_free.next;
-    mini_os_single_list_remove(slot, &pool->slab_free);
-    /* Occupied: the next-pointer area yields to user data (the pointer is dropped) */
-    return (void*)slot;
+    return mini_os_slab_class_alloc(pool->slab_free, cls);
 }
 
 /**
- * @brief Return an object slot to the slab free list
+ * @brief Return an object slot to its size class
  * @param[in] pool pool descriptor
  * @param[in] ptr pointer to free
  * @return 1 = freed; 0 = pointer not inside the slab zone; -1 = inside the
@@ -296,23 +404,7 @@ static void* mini_os_memory_slab_alloc(struct mini_os_memory* pool)
  */
 static mini_os_int32_t mini_os_memory_slab_free(struct mini_os_memory* pool, void* ptr)
 {
-    const mini_os_uint8_t* p = (const mini_os_uint8_t*)ptr;
-
-    if (pool->slab_size == 0 || p < pool->slab_base || p >= pool->slab_base + pool->slab_size)
-    {
-        return 0;
-    }
-    if (((mini_os_size_t)(p - pool->slab_base) % MINI_OS_SLAB_MINI_BYTES) != 0)
-    {
-        return -1; /* not aligned to a slot boundary: invalid pointer */
-    }
-    {
-        mini_os_single_list_t* slot = (mini_os_single_list_t*)ptr;
-
-        mini_os_single_list_init(slot);
-        mini_os_single_list_push_heap(&pool->slab_free, slot);
-    }
-    return 1;
+    return mini_os_slab_zone_free(pool->slab_base, pool->slab_size, pool->slab_free, ptr);
 }
 
 #endif /* CONFIG_OPEN_SLAB */
@@ -325,6 +417,9 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
 {
     mini_os_buffer_freelist_config_t* whole;
     mini_os_size_t name_len;
+#ifdef CONFIG_OPEN_SLAB
+    mini_os_uint32_t cls;
+#endif
 
     if (pool == MINI_OS_NULL || config == MINI_OS_NULL || config->static_mem == MINI_OS_NULL)
     {
@@ -356,7 +451,10 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
     MINI_OS_ATOMIC_STORE(&pool->used_count, 0, MINI_OS_SEQ_CST);
     MINI_OS_ATOMIC_STORE(&pool->peak, 0, MINI_OS_SEQ_CST);
 #ifdef CONFIG_OPEN_SLAB
-    mini_os_single_list_init(&pool->slab_free);
+    for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
+    {
+        mini_os_single_list_init(&pool->slab_free[cls]);
+    }
     pool->slab_base = MINI_OS_NULL;
     pool->slab_size = 0;
     pool->slab_page_count = 0;
@@ -391,6 +489,10 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
 
 mini_os_err_t mini_os_memory_deinit(mini_os_memory_t* pool)
 {
+#ifdef CONFIG_OPEN_SLAB
+    mini_os_uint32_t cls;
+#endif
+
     if (pool == MINI_OS_NULL)
     {
         return MINI_OS_ERR_INVAL;
@@ -404,7 +506,10 @@ mini_os_err_t mini_os_memory_deinit(mini_os_memory_t* pool)
     MINI_OS_ATOMIC_STORE(&pool->used_count, 0, MINI_OS_SEQ_CST);
     MINI_OS_ATOMIC_STORE(&pool->peak, 0, MINI_OS_SEQ_CST);
 #ifdef CONFIG_OPEN_SLAB
-    mini_os_single_list_init(&pool->slab_free);
+    for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
+    {
+        mini_os_single_list_init(&pool->slab_free[cls]);
+    }
     pool->slab_base = MINI_OS_NULL;
     pool->slab_size = 0;
     pool->slab_page_count = 0;
@@ -440,10 +545,11 @@ void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size)
     }
     lock_state = mini_os_irq_save();
 #ifdef CONFIG_OPEN_SLAB
-    /* Small allocations go to slab first; fall back to the free list below when exhausted */
-    if (size <= MINI_OS_SLAB_MINI_BYTES)
+    /* Small allocations go to the matching size class first; fall back to the
+     * free list below when the class is exhausted or the size is over the max */
+    if (size <= MINI_OS_SLAB_MAX_BYTES)
     {
-        ptr = mini_os_memory_slab_alloc(pool);
+        ptr = mini_os_memory_slab_alloc(pool, size);
     }
 #endif
     if (ptr == MINI_OS_NULL)
@@ -601,6 +707,64 @@ mini_os_err_t mini_os_memory_reset_peak(mini_os_memory_t* pool)
 static mini_os_memory_t s_mini_os_heap_pool; /**< global heap pool descriptor */
 static mini_os_bool_t s_mini_os_heap_ready = MINI_OS_FALSE; /**< heap ready flag */
 
+/* -------------------------------------------------------------------------- */
+/* Static slab zone (CONFIG_MINI_OS_SLAB_STATIC): an independent static array, */
+/* never carved out of the heap; the heap keeps 100% of its RAM. When the      */
+/* static slots are exhausted the request falls back to the free list.         */
+/* -------------------------------------------------------------------------- */
+#ifdef CONFIG_MINI_OS_SLAB_STATIC
+
+/** Static slab zone storage (RAM, owned by the allocator) */
+static mini_os_uint8_t s_mini_os_slab_static_mem[MINI_OS_SLAB_STATIC_SIZE] MINI_OS_ALIGN(8);
+static mini_os_single_list_t s_mini_os_slab_static_free[MINI_OS_SLAB_CLASS_COUNT]; /**< free slot list per size class (sentinels) */
+static mini_os_bool_t s_mini_os_slab_static_ready = MINI_OS_FALSE; /**< static zone ready flag */
+
+/**
+ * @brief Cut the static zone into size-class pages and link every slot as
+ *        free (called by the startup constructor)
+ */
+static void mini_os_slab_static_zone_setup(void)
+{
+    mini_os_uint32_t cls;
+
+    for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
+    {
+        mini_os_single_list_init(&s_mini_os_slab_static_free[cls]);
+    }
+    /* Each page serves one size class (page i -> class i %% count) */
+    mini_os_slab_zone_link(s_mini_os_slab_static_mem, MINI_OS_SLAB_STATIC_SIZE, s_mini_os_slab_static_free);
+    s_mini_os_slab_static_ready = MINI_OS_TRUE;
+}
+
+/**
+ * @brief Take one slot from the size class matching size
+ * @return slot pointer on success; MINI_OS_NULL when the matching class is
+ *         empty or size exceeds the max class (caller falls back to the heap)
+ */
+static void* mini_os_slab_static_alloc(mini_os_size_t size)
+{
+    mini_os_uint32_t cls = mini_os_slab_class_of(size);
+
+    if (cls >= (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT)
+    {
+        return MINI_OS_NULL; /* over the max class, caller goes to the heap */
+    }
+    return mini_os_slab_class_alloc(s_mini_os_slab_static_free, cls);
+}
+
+/**
+ * @brief Return a slot to its size class
+ * @param[in] ptr pointer to free
+ * @return 1 = freed; 0 = pointer not inside the static zone;
+ *         -1 = inside the zone but not aligned to a slot boundary (rejected)
+ */
+static mini_os_int32_t mini_os_slab_static_free(void* ptr)
+{
+    return mini_os_slab_zone_free(s_mini_os_slab_static_mem, MINI_OS_SLAB_STATIC_SIZE, s_mini_os_slab_static_free, ptr);
+}
+
+#endif /* CONFIG_MINI_OS_SLAB_STATIC */
+
 /**
  * @brief Validate the slab occupation ratio (only meaningful with CONFIG_OPEN_SLAB;
  *        invoked by the startup constructor; exceeding the limit is a configuration error)
@@ -610,7 +774,8 @@ static mini_os_bool_t s_mini_os_heap_ready = MINI_OS_FALSE; /**< heap ready flag
 #ifdef CONFIG_OPEN_SLAB
 MINI_OS_CONSTRUCTOR(101) mini_os_err_t mini_os_heap_validate(void)
 {
-    if (((mini_os_size_t)MINI_OS_SLAB_PAGE_MAX * (mini_os_size_t)MINI_OS_SLAB_PAGE_SIZE) > ((mini_os_size_t)MINI_OS_HEAP_SIZE / MINI_OS_SLAB_PROPORTION))
+    /* page size * proportion must be less than heap size and page limited by init function*/
+    if ((mini_os_size_t)MINI_OS_HEAP_SIZE < ((mini_os_size_t)MINI_OS_SLAB_PAGE_SIZE * MINI_OS_SLAB_PROPORTION))
     {
         return MINI_OS_ERR_NOMEM;
     }
@@ -637,12 +802,16 @@ MINI_OS_CONSTRUCTOR(101) static void mini_os_slab_validate_ctor(void)
 /**
  * @brief Heap initialization (auto-run constructor before main): merges the
  *        linker-script heap zone into the free list, i.e. the global-heap
- *        variant of mini_os_memory_init
+ *        variant of mini_os_memory_init; also cuts the static slab zone when
+ *        CONFIG_MINI_OS_SLAB_STATIC is enabled (independent of the heap)
  */
 MINI_OS_CONSTRUCTOR(MINI_OS_MEMORY_PRESTRUCTOR) static void mini_os_heap_init_ctor(void)
 {
     mini_os_memory_config_t cfg;
 
+#ifdef CONFIG_MINI_OS_SLAB_STATIC
+    mini_os_slab_static_zone_setup(); /* static zone ready before the heap, no heap dependency */
+#endif
     if ((__mini_os_heap_end - __mini_os_heap_start) <= 0)
     {
         return; /* linker script anomaly / host environment: heap stays not ready */
@@ -658,6 +827,25 @@ MINI_OS_CONSTRUCTOR(MINI_OS_MEMORY_PRESTRUCTOR) static void mini_os_heap_init_ct
 
 void* mini_os_malloc(mini_os_size_t size)
 {
+#ifdef CONFIG_MINI_OS_SLAB_STATIC
+    void* ptr;
+#endif
+
+    if (size == 0)
+    {
+        return MINI_OS_NULL;
+    }
+#ifdef CONFIG_MINI_OS_SLAB_STATIC
+    if (size <= MINI_OS_SLAB_MAX_BYTES && s_mini_os_slab_static_ready == MINI_OS_TRUE)
+    {
+        ptr = mini_os_slab_static_alloc(size);
+        if (ptr != MINI_OS_NULL)
+        {
+            return ptr;
+        }
+        /* matching class exhausted: fall back to the heap when it exists */
+    }
+#endif
     if (s_mini_os_heap_ready != MINI_OS_TRUE)
     {
         return MINI_OS_NULL;
@@ -667,6 +855,23 @@ void* mini_os_malloc(mini_os_size_t size)
 
 mini_os_err_t mini_os_free(void* ptr)
 {
+#ifdef CONFIG_MINI_OS_SLAB_STATIC
+    mini_os_int32_t result;
+
+    if (ptr == MINI_OS_NULL)
+    {
+        return MINI_OS_ERR_INVAL;
+    }
+    result = mini_os_slab_static_free(ptr);
+    if (result == 1)
+    {
+        return MINI_OS_OK; /* pointer belonged to the static slab zone */
+    }
+    if (result < 0)
+    {
+        return MINI_OS_ERR_INVAL; /* inside the static zone but misaligned */
+    }
+#endif
     if (s_mini_os_heap_ready != MINI_OS_TRUE)
     {
         return MINI_OS_ERR_DEFER; /* heap not ready, retry later */
@@ -695,4 +900,13 @@ void* mini_os_calloc(mini_os_size_t count, mini_os_size_t size)
         MINI_OS_MEMSET(ptr, 0, total);
     }
     return ptr;
+}
+
+mini_os_size_t mini_os_heap_free_space(void)
+{
+    if (s_mini_os_heap_ready != MINI_OS_TRUE)
+    {
+        return 0;
+    }
+    return mini_os_memory_free_space(&s_mini_os_heap_pool);
 }

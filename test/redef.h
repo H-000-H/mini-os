@@ -56,6 +56,9 @@ typedef mini_os_uint32_t mini_os_atomic_uint32_t;
 /* --------------------- constructors (host: clang attribute) --------------- */
 #define MINI_OS_CONSTRUCTOR(x) __attribute__((constructor(x)))
 
+/* --------------------- compile-time alignment ----------------------------- */
+#define MINI_OS_ALIGN(x) __attribute__((aligned(x)))
+
 /* --------------------- static assert --------------------------------------- */
 #define MINI_OS_ASSERT(condition, fmt) _Static_assert(condition, fmt)
 

@@ -6,11 +6,17 @@
  * @details
  *  - malloc/free model: alloc returns a raw pointer, free takes only the
  *    pointer; the block contents are managed by the caller
- *  - by default everything goes through the free list
- *    (first-fit, splitting, adjacent coalescing)
- *  - when CONFIG_OPEN_SLAB is enabled, small allocations
- *    (<= MINI_OS_SLAB_MINI_BYTES, minimum 16 bytes) go to slab first and
- *    fall back to the free list when the slab is exhausted
+ *  - three mutually exclusive builds (chosen by config at compile time):
+ *      1. default: everything goes through the free list
+ *         (first-fit, splitting, adjacent coalescing)
+ *      2. CONFIG_OPEN_SLAB: small allocations (<= MINI_OS_SLAB_MAX_BYTES)
+ *         go to size-class slab pages carved once from the pool head at init
+ *         (class sizes 16/32/64/128/256 [, 512], one page per class,
+ *         page i serves class i %% class count), falling back to the free
+ *         list when the matching class is exhausted
+ *      3. CONFIG_MINI_OS_SLAB_STATIC: same size classes over an independent
+ *         static array (never touches the heap; the heap keeps all its RAM),
+ *         falling back to the free list when the matching class is exhausted
  *  - free blocks / free slab objects embed list pointers; once occupied the
  *    pointer area is reused for user data and rewritten on free
  *  - the global heap memory comes from the linker script
@@ -25,6 +31,16 @@ extern "C" {
 #endif
 #include "redef.h"
 #include "list.h"
+
+/*---------------------------------------------------------------------------------------------------------*/
+/*                                 slab build selection (mutually exclusive)                              */
+/*---------------------------------------------------------------------------------------------------------*/
+#if defined(CONFIG_OPEN_SLAB) && defined(CONFIG_MINI_OS_SLAB_STATIC)
+#error "CONFIG_OPEN_SLAB and CONFIG_MINI_OS_SLAB_STATIC are mutually exclusive"
+#endif
+#if defined(CONFIG_OPEN_SLAB) || defined(CONFIG_MINI_OS_SLAB_STATIC)
+#include "mem_heap.h" /* slab size-class config (MINI_OS_SLAB_CLASS_COUNT etc.) */
+#endif
 
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                       memory pool macros                                                */
@@ -90,7 +106,7 @@ struct mini_os_memory
 #ifdef CONFIG_OPEN_SLAB
     mini_os_uint8_t* slab_base; /**< slab zone base (carved once at init, never returned; meaningless when slab_size == 0) */
     mini_os_size_t slab_size; /**< slab zone total bytes (pages * MINI_OS_SLAB_PAGE_SIZE) */
-    mini_os_single_list_t slab_free; /**< free slot list head (sentinel) */
+    mini_os_single_list_t slab_free[MINI_OS_SLAB_CLASS_COUNT]; /**< free slot list per size class (sentinels) */
     mini_os_uint32_t slab_page_count; /**< slab pages carved out (statistics) */
 #endif
 };
@@ -133,9 +149,11 @@ mini_os_err_t mini_os_memory_deinit(mini_os_memory_t* pool);
  * @param[in] size requested bytes (internally rounded up to 8-byte alignment)
  * @return data pointer (8-byte aligned) on success; MINI_OS_NULL on invalid
  *         arguments or out of memory
- * @note With CONFIG_OPEN_SLAB, requests with size <= MINI_OS_SLAB_MINI_BYTES
- *       go to slab first; when the slab is exhausted (and no more pages can be
- *       carved) the request falls back to the free list.
+ * @note With CONFIG_OPEN_SLAB, requests <= MINI_OS_SLAB_MAX_BYTES are
+ *       rounded up to a size class and served from the matching slab page;
+ *       when that class is exhausted the request falls back to the free list.
+ *       CONFIG_MINI_OS_SLAB_STATIC does not apply to pool API, only to the
+ *       global malloc/free entry.
  */
 void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size);
 
@@ -216,6 +234,12 @@ mini_os_err_t mini_os_memory_reset_peak(mini_os_memory_t* pool);
  * @param[in] size requested bytes (0 returns MINI_OS_NULL)
  * @return data pointer (8-byte aligned) on success; MINI_OS_NULL when the heap
  *         is not ready or out of memory
+ * @note With CONFIG_OPEN_SLAB, requests <= MINI_OS_SLAB_MAX_BYTES go to the
+ *       heap-carved size-class slab pages first. With
+ *       CONFIG_MINI_OS_SLAB_STATIC, such requests go to the independent
+ *       static slab pages first (initialized at startup, independent of heap
+ *       readiness); when the matching class is exhausted they fall back to
+ *       the heap.
  */
 void* mini_os_malloc(mini_os_size_t size);
 
@@ -236,6 +260,12 @@ mini_os_err_t mini_os_free(void* ptr);
  *         the heap is not ready, out of memory, or on overflow
  */
 void* mini_os_calloc(mini_os_size_t count, mini_os_size_t size);
+
+/**
+ * @brief Query the remaining free bytes of the global heap (O(1))
+ * @return free bytes; 0 when the heap is not ready
+ */
+mini_os_size_t mini_os_heap_free_space(void);
 
 #if defined(__cplusplus)
 }

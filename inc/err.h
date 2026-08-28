@@ -13,6 +13,19 @@
 #include "redef.h"
 #if __has_include(<config.h>) && __has_include(<compiler_compat.h>)
 #include <status.h>
+#define MINI_OS_OK MINI_OK
+#define MINI_OS_ERR_INVAL MINI_ERR_INVAL       /**<invalid parameter */
+#define MINI_OS_ERR_ISR MINI_ERR_ISR         /**<interrupt context illegal call */
+#define MINI_OS_ERR_NOMEM MINI_ERR_NOMEM       /**<memory insufficient */
+#define MINI_OS_ERR_IO MINI_ERR_IO          /**<physical IO error */
+#define MINI_OS_ERR_BUSY MINI_ERR_BUSY        /**<device busy */
+#define MINI_OS_ERR_AGAIN MINI_ERR_AGAIN       /**<retry */
+#define MINI_OS_ERR_NOSPC MINI_ERR_NOSPC       /**<no remaining space/channel */
+#define MINI_OS_ERR_TIMEOUT MINI_ERR_TIMEOUT     /**<lock acquisition/operation timeout */
+#define MINI_OS_ERR_HW_FATAL MINI_ERR_HW_FATAL    /**<hardware physical fault, unrecoverable */
+#define MINI_OS_ERR_DEFER MINI_ERR_DEFER      /**<dependency not ready, retry later */
+#define MINI_OS_ERR_NODEV MINI_ERR_NODEV      /**<device removed or not exist */
+#define MINI_OS_ERR_NOTSUPP MINI_ERR_NOTSUPP    /**<operation not supported/implemented */
 #else
 #define MINI_OS_OK 0
 #define MINI_OS_ERR_INVAL -1       /**<invalid parameter */
