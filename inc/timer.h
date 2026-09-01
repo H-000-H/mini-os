@@ -10,12 +10,22 @@
 #include "list.h"
 #include <redef.h>
 typedef struct mini_os_timer mini_os_timer_t;
-struct mini_os_timer
+
+/**
+ * @brief Structure representing a mini-os timer
+ */
+typedef struct mini_os_timer
 {
-    mini_os_tick_t out_tick;                        /**< deadline tick for the timer */
-    mini_os_tick_t time_out;                        /**< Tick count for the timer out tick */
-    void (*callback)(void*);                    /**< callback function for the timer */
-    void* param;                                 /**< parameter for the callback function */
-    mini_os_timer_t* node;                       /**< next timer in the list */
-};
+    mini_os_list_t      list_node;          /**< list node for timer */
+    char                timer_name[THREADS_NAME_LEN]; /**< timer name */
+    void                (*cb)(void *arg);   /**< callback function */
+    void                *arg;               /**< callback function argument */
+    mini_os_tick_t      init_tick;          /**< user set init tick */
+    mini_os_tick_t      timeout_tick;       /**< absolute timeout tick */
+    mini_os_uint8_t     flag;               /**< ONE_SHOT/PERIODIC; HARD/SOFT */
+    mini_os_bool_t      is_active;          /**< timer is active or not */
+} mini_os_timer_t;
+
+
+
 #endif

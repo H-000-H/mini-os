@@ -1,7 +1,7 @@
 /**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file redef.h
- * @author H-OOO-H
+ * @author H-000-H
  * @brief mini-os redefinition macros file (all symbols prefixed mini_os_/MINI_OS_)
  * @details
  *   - defines 'atomic' 'base types' 'gcc/clang differences' 'built-in macros'
@@ -86,17 +86,94 @@ typedef signed long                         mini_os_user_data_t;          /**<mi
 #define MINI_OS_STATIC_FORCE_INLINE           static __attribute__((always_inline))       /**<static force inline*/
 #define MINI_OS_TYPEOF(x)                     __typeof__(x)             /**<typeof*/
 #define MINI_OS_CONSTRUCTOR(x)                __attribute__((constructor(x)))               /**<constructor*/
+#define MINI_OS_ASM                           __attribute__((naked))                   /**<asm*/
 #else
-#define MINI_OS_INLINE                        inline                    /**<inline*/
-#define MINI_OS_STATIC                        static                    /**<static*/
-#define MINI_OS_STATIC_INLINE                 static inline             /**<static inline*/
-#define MINI_OS_CONSTRUCTOR(x)                                                    /**<constructor: no standard C equivalent, no-op*/
+#define MINI_OS_INLINE                        inline                      /**<inline*/
+#define MINI_OS_STATIC                        static                      /**<static*/
+#define MINI_OS_STATIC_INLINE                 static inline               /**<static inline*/
+#define MINI_OS_WEAK                                                       /**<weak: no portable equivalent, no-op*/
+#define MINI_OS_CONSTRUCTOR(x)                                                            /**<constructor: no standard C equivalent, no-op*/
+
+/**
+ * @brief Count leading zeros (pure C fallback, 32-bit)
+ * @param[in] x input value
+ * @return number of leading zero bits; 32 when x == 0
+ */
+MINI_OS_STATIC_INLINE mini_os_uint32_t mini_os_clz_fallback(mini_os_uint32_t x)
+{
+    mini_os_uint32_t n = 0u;
+    if (x == 0u)
+    {
+        return 32u;
+    }
+    while ((x & 0x80000000u) == 0u)
+    {
+        n++;
+        x <<= 1u;
+    }
+    return n;
+}
+
+/**
+ * @brief Count trailing zeros (pure C fallback, 32-bit)
+ * @param[in] x input value
+ * @return number of trailing zero bits; 32 when x == 0
+ */
+MINI_OS_STATIC_INLINE mini_os_uint32_t mini_os_ctz_fallback(mini_os_uint32_t x)
+{
+    mini_os_uint32_t n = 0u;
+    if (x == 0u)
+    {
+        return 32u;
+    }
+    while ((x & 1u) == 0u)
+    {
+        n++;
+        x >>= 1u;
+    }
+    return n;
+}
+
+/**
+ * @brief Count set bits (pure C fallback, 32-bit)
+ * @param[in] x input value
+ * @return number of 1 bits in x
+ */
+MINI_OS_STATIC_INLINE mini_os_uint32_t mini_os_popcount_fallback(mini_os_uint32_t x)
+{
+    mini_os_uint32_t n = 0u;
+    while (x != 0u)
+    {
+        x &= x - 1u;
+        n++;
+    }
+    return n;
+}
+
+/**
+ * @brief Reverse byte order (pure C fallback, 32-bit)
+ * @param[in] x input value
+ * @return x with bytes reversed (big-endian <-> little-endian)
+ */
+MINI_OS_STATIC_INLINE mini_os_uint32_t mini_os_bswap_fallback(mini_os_uint32_t x)
+{
+    return ((x & 0x000000FFu) << 24) | ((x & 0x0000FF00u) << 8) |
+           ((x & 0x00FF0000u) >> 8) | ((x & 0xFF000000u) >> 24);
+}
+
+#define MINI_OS_CLZ(x)     mini_os_clz_fallback((mini_os_uint32_t)(x))       /**<count leading zeros: pure C fallback*/
+#define MINI_OS_CTZ(x)     mini_os_ctz_fallback((mini_os_uint32_t)(x))       /**<count trailing zeros: pure C fallback*/
+#define MINI_OS_POPCOUNT(x) mini_os_popcount_fallback((mini_os_uint32_t)(x)) /**<count set bits: pure C fallback*/
+#define MINI_OS_BSWAP(x)   mini_os_bswap_fallback((mini_os_uint32_t)(x))     /**<byte swap: pure C fallback*/
 #endif
 
 
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                  mini-os-interrupt-functions                                            */
 /*---------------------------------------------------------------------------------------------------------*/
+/**
+ * @brief Disable interrupts globally (PRIMASK)
+ */
 MINI_OS_STATIC_INLINE void mini_os_irq_disable(void)
 {
     __asm volatile ("cpsid i" ::: "memory");
@@ -167,11 +244,11 @@ typedef mini_os_volatile_uint16_t mini_os_atomic_uint16_t;         /**<mini-os a
 typedef mini_os_volatile_int32_t mini_os_atomic_int32_t;           /**<mini-os atomic int32_t*/
 typedef mini_os_volatile_uint32_t mini_os_atomic_uint32_t;         /**<mini-os atomic uint32_t*/
 
-#define MINI_OS_RELAXED 0
-#define MINI_OS_ACQUIRE 0
-#define MINI_OS_RELEASE 0
-#define MINI_OS_ACQ_REL 0
-#define MINI_OS_SEQ_CST 0
+#define MINI_OS_RELAXED 0                    /**< relaxed: no ordering (API parity only) */
+#define MINI_OS_ACQUIRE 0                    /**< acquire: no ordering (API parity only) */
+#define MINI_OS_RELEASE 0                    /**< release: no ordering (API parity only) */
+#define MINI_OS_ACQ_REL 0                    /**< acquire-release: no ordering (API parity only) */
+#define MINI_OS_SEQ_CST 0                    /**< sequential consistent: no ordering (API parity only) */
 
 /*---------------------------------------------------------------------------------------------------------*/
 /*                          pure ISO C11 atomic fallback (no compiler builtins)                            */
@@ -358,16 +435,29 @@ MINI_OS_ATOMIC_EXCHANGE_FN(uint32, mini_os_uint32_t, mini_os_volatile_uint32_t)
         mini_os_volatile_uint32_t *: mini_os_atomic_exchange_uint32 \
     )((ptr), (value))                    /**<mini-os atomic exchange*/
 
-#define MINI_OS_ATOMIC_RUNTIME_INIT(p, val) MINI_OS_ATOMIC_STORE((p), (val), MINI_OS_RELAXED)
+#define MINI_OS_ATOMIC_RUNTIME_INIT(p, val) MINI_OS_ATOMIC_STORE((p), (val), MINI_OS_RELAXED)  /**< runtime init = relaxed store */
 #define MINI_OS_ASSERT(condition, fmt)              _Static_assert(condition, fmt)                  /**<mini-os assert*/
 #endif
 
 /*---------------------------------------------------------------------------------------------------------*/
-/*                                      memset (freestanding)                                              */
+/*                                      mem (freestanding)                                              */
 /*---------------------------------------------------------------------------------------------------------*/
 #if defined (__clang__) || defined (__GNUC__)
 #define MINI_OS_MEMSET(dst, val, n)           __builtin_memset((dst), (val), (n)) /**<memset: compiler inline expand, word-width stores*/
+
+#define MINI_OS_MEMCPY(dst, src, n)           __builtin_memcpy((dst), (src), (n)) /**<memcpy: compiler inline expand, word-width stores*/
+
+#define MINI_OS_MEMMOVE(dst, src, n)          __builtin_memmove((dst), (src), (n)) /**<memmove: compiler inline expand, word-width stores*/
+
+#define MINI_OS_MEMNCPY(dst, src, n)          __builtin_memcpy((dst), (src), (n)) /**<memncpy (bounded copy): same as memcpy*/
 #else
+/**
+ * @brief Fill memory with a byte value (pure C fallback)
+ * @param[in] dst destination buffer
+ * @param[in] val fill byte value
+ * @param[in] n number of bytes to fill
+ * @return dst
+ */
 MINI_OS_STATIC_INLINE void* mini_os_memset_fallback(void* dst, mini_os_int32_t val, mini_os_size_t n)
 {
     mini_os_uint8_t* p = (mini_os_uint8_t*)dst;
@@ -379,12 +469,105 @@ MINI_OS_STATIC_INLINE void* mini_os_memset_fallback(void* dst, mini_os_int32_t v
     }
     return dst;
 }
+
+/**
+ * @brief Copy memory (pure C fallback, regions must not overlap)
+ * @param[in] dst destination buffer
+ * @param[in] src source buffer
+ * @param[in] n number of bytes to copy
+ * @return dst
+ * @note use MINI_OS_MEMMOVE when dst and src may overlap
+ */
+MINI_OS_STATIC_INLINE void* mini_os_memcpy_fallback(void* dst, const void* src, mini_os_size_t n)
+{
+    mini_os_uint8_t* d = (mini_os_uint8_t*)dst;
+    const mini_os_uint8_t* s = (const mini_os_uint8_t*)src;
+    mini_os_size_t i;
+
+    for (i = 0u; i < n; i++)
+    {
+        d[i] = s[i];
+    }
+    return dst;
+}
+
+/**
+ * @brief Copy memory handling overlap (pure C fallback)
+ * @param[in] dst destination buffer
+ * @param[in] src source buffer
+ * @param[in] n number of bytes to copy
+ * @return dst
+ */
+MINI_OS_STATIC_INLINE void* mini_os_memmove_fallback(void* dst, const void* src, mini_os_size_t n)
+{
+    mini_os_uint8_t* d = (mini_os_uint8_t*)dst;
+    const mini_os_uint8_t* s = (const mini_os_uint8_t*)src;
+
+    if (d <= s || d >= s + n)
+    {
+        return mini_os_memcpy_fallback(dst, src, n);
+    }
+    /* overlapping and dst is after src: copy backwards */
+    while (n-- > 0u)
+    {
+        d[n] = s[n];
+    }
+    return dst;
+}
+
 #define MINI_OS_MEMSET(dst, val, n)           mini_os_memset_fallback((dst), (val), (n)) /**<memset: pure C fallback*/
+#define MINI_OS_MEMCPY(dst, src, n)           mini_os_memcpy_fallback((dst), (src), (n)) /**<memcpy: pure C fallback*/
+#define MINI_OS_MEMMOVE(dst, src, n)          mini_os_memmove_fallback((dst), (src), (n)) /**<memmove: pure C fallback*/
+#define MINI_OS_MEMNCPY(dst, src, n)          mini_os_memcpy_fallback((dst), (src), (n)) /**<memncpy (bounded copy): pure C fallback, same as memcpy*/
 #endif
 
+#if defined (__clang__) || defined (__GNUC__)
+#define MINI_OS_STRCMP(s1, s2)            __builtin_strcmp((s1), (s2))            /**<strcmp: compiler builtin*/
+#else
+/**
+ * @brief Compare two strings (pure C fallback)
+ * @param[in] s1 first string
+ * @param[in] s2 second string
+ * @return < 0 if s1 < s2, 0 if equal, > 0 if s1 > s2
+ */
+MINI_OS_STATIC_INLINE mini_os_int32_t mini_os_strcmp_fallback(const char* s1, const char* s2)
+{
+    while (*s1 != '\0' && *s1 == *s2)
+    {
+        s1++;
+        s2++;
+    }
+    return (mini_os_int32_t)((mini_os_uint8_t)*s1 - (mini_os_uint8_t)*s2);
+}
+#define MINI_OS_STRCMP(s1, s2)            mini_os_strcmp_fallback((s1), (s2))    /**<strcmp: pure C fallback*/
+#endif
+/**
+ * @brief Align a value up to a power-of-2 boundary
+ * @param[in] x value to align
+ * @param[in] a alignment (must be a power of 2)
+ * @return smallest multiple of a that is >= x
+ */
+#define MINI_OS_MEMORY_ALIGN_UP(x, a) \
+    ((((size_t)(x)) + ((size_t)(a) - 1U)) & (~((size_t)(a) - 1U)))
+/**
+ * @brief Align a value down to a power-of-2 boundary
+ * @param[in] x value to align
+ * @param[in] a alignment (must be a power of 2)
+ * @return largest multiple of a that is <= x
+ */
+#define MINI_OS_MEMORY_ALIGN_DOWN(x,a) \
+    (((size_t)(x)) & ~((size_t)(a)-1U))
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                      container_of                                                       */
 /*---------------------------------------------------------------------------------------------------------*/
+/**
+ * @brief Get the enclosing structure from a member pointer
+ * @param[in] ptr pointer to a structure member
+ * @param[in] type structure type
+ * @param[in] member member name
+ * @return pointer to the enclosing structure
+ * @note the GCC/Clang variant uses statement expressions for member type checking
+ */
 #if defined (__clang__) || defined (__GNUC__)
 #define mini_os_container_of(ptr, type, member)                                                     \
     ({                                                                                             \
@@ -399,7 +582,18 @@ MINI_OS_STATIC_INLINE void* mini_os_memset_fallback(void* dst, mini_os_int32_t v
 /*---------------------------------------------------------------------------------------------------------*/
 /*                              boolify(change any value to bool)                                          */
 /*---------------------------------------------------------------------------------------------------------*/
-#define mini_os_boolify(val) (!!(val))
+#define mini_os_boolify(val) (!!(val))  /**< convert any value to boolean 0/1 */
+/*---------------------------------------------------------------------------------------------------------*/
+/*                              register                                                                   */
+/*---------------------------------------------------------------------------------------------------------*/
+#define MINI_OS_PENDSV_IRQ *(volatile uint8_t *)0xE000ED22   /**< PendSV exception priority register (SHPR2) */
+#define MINI_OS_SYSTICK_IRQ *(volatile uint8_t *)0xE000ED23   /**< SysTick exception priority register (SHPR3) */
+#define MINI_OS_SYSTICK_CTRL *(volatile uint32_t *)0xE000E010 /**< SysTick control and status register */
+#define MINI_OS_SYSTICK_RELOAD *(volatile uint32_t *)0xE000E014 /**< SysTick reload value register */
+#define MINI_OS_SYSTICK_VAL *(volatile uint32_t *)0xE000E018   /**< SysTick current value register */
+#define MINI_OS_SYSTICK_CTRL_ENABLE    (1u << 0)   /**< SysTick enable */
+#define MINI_OS_SYSTICK_CTRL_TICKINT   (1u << 1)   /**< SysTick exception enable */
+#define MINI_OS_SYSTICK_CTRL_CLKSOURCE (1u << 2)   /**< 1 = processor clock */
 
 #if defined (__cplusplus)
 }

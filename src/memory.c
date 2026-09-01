@@ -18,8 +18,6 @@
 #define MINI_OS_MEMORY_ALIGN_SIZE 8u /**< data-area alignment granularity */
 #define MINI_OS_MEMORY_MIN_BLOCK 16u /**< minimum free-list data block; do not split when the remainder falls below this */
 
-#define MINI_OS_MEMORY_ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
-
 /* Free-list block header size: the header is embedded in pool memory and the
  * data area follows it, aligned to 8 bytes. */
 #define MINI_OS_MEMORY_HDR_SIZE \

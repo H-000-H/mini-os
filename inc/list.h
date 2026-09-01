@@ -68,17 +68,17 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_add(struct mini_os_list_node *n
     return MINI_OS_OK;
 }
 
-/*
+/**
  * @brief Add a node to the tail of a mini-os list
  * @param[in] new_node The node to add
- * @param[in] heap The heap of the list
+ * @param[in] head The head of the list
  * @return MINI_OS_OK on success, negative error code on failure
  */
-MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_tail(struct mini_os_list_node *new_node, struct mini_os_list_node *heap)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_tail(struct mini_os_list_node *new_node, struct mini_os_list_node *head)
 {
-    if (new_node == MINI_OS_NULL || heap == MINI_OS_NULL)
+    if (new_node == MINI_OS_NULL || head == MINI_OS_NULL)
         return MINI_OS_ERR_INVAL;
-    return mini_os_list_add(heap, heap->prev, new_node);
+    return mini_os_list_add(head, head->prev, new_node);
 }
 
 /**

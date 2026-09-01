@@ -18,7 +18,10 @@ set(MINI_OS_INC
 
 set(MINI_OS_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/schedule.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/thread.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/port/port.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/port/port.S
 )
 
 add_library(${CMAKE_PROJECT_NAME}
@@ -27,6 +30,7 @@ add_library(${CMAKE_PROJECT_NAME}
 
 target_include_directories(
   ${CMAKE_PROJECT_NAME} PRIVATE ${MINI_OS_INC}
+  ${CMAKE_CURRENT_SOURCE_DIR}/port
 )
 
 target_sources(

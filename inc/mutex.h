@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file mutex.h
  * @brief mutex implementation

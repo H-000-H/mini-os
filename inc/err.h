@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file err.h
  * @brief Error codes
@@ -40,7 +40,7 @@
 #define MINI_OS_ERR_DEFER -10      /**<dependency not ready, retry later */
 #define MINI_OS_ERR_NODEV -11      /**<device removed or not exist */
 #define MINI_OS_ERR_NOTSUPP -12    /**<operation not supported/implemented */
-
+#define MINI_OS_ERR_STATE -13     /**<invalid state transition */
 #endif
 
 #endif

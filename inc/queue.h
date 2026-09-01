@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file queue.h
  * @brief queue implementation
@@ -13,6 +13,9 @@ extern "C" {
 #include "redef.h"
 #include "mini_config.h"
 typedef struct mini_os_queue mini_os_queue_t;
+/**
+ * @brief Structure representing a mini-os queue
+ */
 struct mini_os_queue
 {
     char name[QUEUE_NAME_LEN]; /**< queue name */

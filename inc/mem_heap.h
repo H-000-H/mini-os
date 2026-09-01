@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file mem_heap.h
  * @brief Memory heap definition and link lds script only control heap size
