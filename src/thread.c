@@ -12,7 +12,6 @@
 #include "redef.h"
 #include "memory.h"
 #include "schedule.h"
-#include <stdint.h>
 #define IDLE_THREAD_NAME "idle_thread"
 #if MINI_OS_FIND_BY_NAME
 static mini_os_list_t g_threads_list;
@@ -110,6 +109,10 @@ static mini_os_err_t mini_os_thread_init(
 
     /* list nodes must be self-referencing (mini-os list convention) */
     mini_os_list_init(&thread->list_node);
+    mini_os_list_init(&thread->wait_node);
+    thread->wait_list = MINI_OS_NULL;
+    thread->wait_done = MINI_OS_TRUE;
+    thread->wait_mask = 0u;
 
     thread->thread_cleanup = MINI_OS_NULL;
     thread->user_data = 0;
@@ -260,9 +263,15 @@ mini_os_err_t mini_os_thread_suspend(                               mini_os_thre
     else if (thread->state == MINI_OS_THREAD_STATE_BLOCKED)
     {
         /* Capture the remaining delay before unlinking: a wheel-parked thread
-         * keeps its countdown frozen in resume_time; a sync-object waiter
-         * (wheel_slot out of range) is canceled (resume_time = 0). */
+         * (plain delay or a timed sync wait) keeps its countdown frozen in
+         * resume_time; a forever sync-object waiter is canceled (resume_time = 0). */
         thread->resume_time = (mini_os_tick_t)mini_os_wheel_remain(thread);
+        if (thread->wait_list != MINI_OS_NULL)
+        {
+            mini_os_list_remove(&thread->wait_node);
+            thread->wait_list = MINI_OS_NULL;
+            thread->wait_done = MINI_OS_FALSE; /* the sync wait is canceled */
+        }
         if (!mini_os_list_is_empty(&thread->list_node))
         {
             mini_os_list_remove(&thread->list_node);
@@ -305,7 +314,8 @@ mini_os_err_t mini_os_thread_resume(                                mini_os_thre
     mini_os_irq_t irq = mini_os_irq_save();
     if (thread->resume_time > 0)
     {
-        /* was wheel-suspended: re-park with the exact remaining ticks */
+        /* was wheel-suspended (plain delay or a timed sync wait): re-park
+         * with the exact remaining ticks */
         mini_os_wheel_insert(thread, (mini_os_uint32_t)thread->resume_time);
         thread->resume_time = 0;
     }
@@ -361,6 +371,24 @@ mini_os_thread_t* mini_os_thread_create(                            const char* 
     return thread;
 }
 
+/**
+ * @brief Detach a BLOCKED thread from everywhere it is parked
+ * @param[in] thread BLOCKED thread to detach (wheel and/or sync wait list)
+ * @note caller must hold the IRQ lock
+ */
+static void mini_os_thread_unlink_blocked(mini_os_thread_t *thread)
+{
+    if (thread->wait_list != MINI_OS_NULL)
+    {
+        mini_os_list_remove(&thread->wait_node);
+        thread->wait_list = MINI_OS_NULL;
+    }
+    if (thread->wheel_slot < MINI_OS_TICK_WHEEL)
+    {
+        (void)mini_os_remove_thread_from_blocked_list(thread);
+    }
+}
+
 mini_os_err_t mini_os_thread_delete(mini_os_thread_t *thread)
 {
     mini_os_irq_t irq;
@@ -379,7 +407,7 @@ mini_os_err_t mini_os_thread_delete(mini_os_thread_t *thread)
     }
     else if (thread->state == MINI_OS_THREAD_STATE_BLOCKED)
     {
-        mini_os_remove_thread_from_blocked_list(thread);
+        mini_os_thread_unlink_blocked(thread);
     }
 #if MINI_OS_FIND_BY_NAME
     mini_os_list_remove(&thread->g_list_node);
@@ -448,7 +476,7 @@ mini_os_err_t mini_os_thread_delete_static(                         mini_os_thre
     }
     else if (thread->state == MINI_OS_THREAD_STATE_BLOCKED)
     {
-        mini_os_remove_thread_from_blocked_list(thread);
+        mini_os_thread_unlink_blocked(thread);
     }
 #if MINI_OS_FIND_BY_NAME
     mini_os_list_remove(&thread->g_list_node);
@@ -554,9 +582,19 @@ mini_os_err_t mini_os_thread_delay_ms(                              mini_os_uint
 
 mini_os_err_t mini_os_thread_delay_tick_until(                      mini_os_uint32_t ticks)
 {
+    mini_os_uint32_t remain;
+
     if (ticks == 0)
         return MINI_OS_OK;
+    if (mini_os_thread_current() == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL; /* thread context only */
 
+    remain = mini_os_tick_until(ticks);
+    if (remain == 0u)
+    {
+        return MINI_OS_OK; /* the target tick has already passed */
+    }
+    mini_os_schedule_delay(remain);
     return MINI_OS_OK;
 }
 

@@ -908,3 +908,4 @@ mini_os_size_t mini_os_heap_free_space(void)
     }
     return mini_os_memory_free_space(&s_mini_os_heap_pool);
 }
+

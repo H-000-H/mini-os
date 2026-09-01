@@ -20,9 +20,9 @@ typedef struct mini_os_semaphore mini_os_semaphore_t;
  */
 struct mini_os_semaphore
 {
-    mini_os_uint16_t   count; /**< Semaphore count */
-    mini_os_bool_t     binary; /**< Binary semaphore flag */
-    mini_os_queue_t queue; /**< Semaphore queue */
+    mini_os_uint16_t    count; /**< Semaphore count */
+    mini_os_bool_t      binary; /**< Binary semaphore flag */
+    mini_os_queue_t     queue; /**< Semaphore queue */
 };
 
 /**

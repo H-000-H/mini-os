@@ -18,6 +18,7 @@ set(MINI_OS_INC
 
 set(MINI_OS_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/queue.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/schedule.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/thread.c
   ${CMAKE_CURRENT_SOURCE_DIR}/port/port.c
@@ -26,6 +27,8 @@ set(MINI_OS_SRC
 
 add_library(${CMAKE_PROJECT_NAME}
     STATIC ${MINI_OS_SRC}
+    inc/event.h
+    src/event.c
 )
 
 target_include_directories(

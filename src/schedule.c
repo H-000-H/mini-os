@@ -209,6 +209,14 @@ static void mini_os_tick_decrement(void)
 
         mini_os_list_remove(&thread->list_node);
         thread->wheel_slot = (mini_os_uint8_t)MINI_OS_TICK_WHEEL;
+        if (thread->wait_list != MINI_OS_NULL)
+        {
+            /* timed out while parked on a sync-object wait list: cancel the
+             * sync wait; the waiter resumes and reports the timeout */
+            mini_os_list_remove(&thread->wait_node);
+            thread->wait_list = MINI_OS_NULL;
+            thread->wait_done = MINI_OS_FALSE;
+        }
         mini_os_add_thread_to_ready_running_list(thread);
     }
 }
@@ -263,6 +271,45 @@ void mini_os_schedule_delay(mini_os_uint32_t ticks)
 
     mini_os_irq_restore(irq_level);
     mini_os_schedule_yield();
+}
+
+mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level)
+{
+    mini_os_thread_t *current;
+    mini_os_bool_t done;
+    mini_os_irq_t irq;
+
+    if (wait_list == MINI_OS_NULL || timeout_tick == 0 ||
+        mini_os_current_thread == MINI_OS_NULL)
+    {
+        mini_os_irq_restore(irq_level);
+        return MINI_OS_ERR_INVAL;
+    }
+
+    /* Park inside the caller-held critical section so the condition check
+     * done by the caller and the park are atomic (no event can be missed). */
+    current = mini_os_current_thread;
+    (void)mini_os_remove_thread_from_ready_running_list(current);
+    current->state = MINI_OS_THREAD_STATE_BLOCKED;
+    current->wait_list = wait_list;
+    current->wait_mask = wait_mask;
+    current->wait_done = MINI_OS_FALSE;
+    mini_os_list_tail(&current->wait_node, wait_list);
+    if (timeout_tick != (mini_os_tick_t)-1)
+    {
+        /* list_node is free here (just left the ready list), so the wheel
+         * park and the wait-list park coexist on separate nodes */
+        (void)mini_os_wheel_insert(current, (mini_os_uint32_t)timeout_tick);
+    }
+    mini_os_irq_restore(irq_level);
+    (void)mini_os_schedule_yield();
+
+    /* back only after an event wake or a wheel timeout unlinked us */
+    irq = mini_os_irq_save();
+    done = current->wait_done;
+    current->wait_done = MINI_OS_TRUE; /* consume the result */
+    mini_os_irq_restore(irq);
+    return (done != MINI_OS_FALSE) ? MINI_OS_OK : MINI_OS_ERR_TIMEOUT;
 }
 
 #if MINI_OS_TIME_SLICE
@@ -326,6 +373,17 @@ mini_os_err_t mini_os_get_tick(mini_os_uint32_t *tick)
 {
     *tick = g_global_tick;
     return MINI_OS_OK;
+}
+
+mini_os_uint32_t mini_os_tick_until(mini_os_uint32_t deadline)
+{
+    mini_os_uint32_t now = g_global_tick; /* aligned 32-bit read is atomic */
+
+    if ((mini_os_int32_t)(deadline - now) <= 0)
+    {
+        return 0u; /* reached or passed */
+    }
+    return deadline - now;
 }
 
 MINI_OS_WEAK void mini_os_systick_init(uint32_t ticks_per_ms)

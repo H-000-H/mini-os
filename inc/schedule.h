@@ -32,15 +32,6 @@ extern "C" {
 #define MINI_OS_MS_TO_TICK(ms) \
     (((mini_os_uint32_t)(ms) * MINI_OS_DEFAULT_SYSTICK) / 1000u)
 
-/**
- * @brief Get the current tick count
- * @return current tick count
- * @note user must to write this function
- */
-MINI_OS_STATIC_INLINE mini_os_tick_t mini_os_get_ticks(void)
-{
-    return MINI_OS_ERR_NOTSUPP;
-}
 extern mini_os_uint32_t g_priority; /**< ready/running bitmap: bit i set = priority i has a ready or running thread (smaller number = higher priority) */
 
 extern mini_os_list_t g_ready_running_list[MINI_OS_PRIORITY]; /**< ready/running list head per priority (running threads stay linked) */
@@ -117,6 +108,25 @@ mini_os_err_t mini_os_wheel_insert(mini_os_thread_t *thread, mini_os_uint32_t ti
  */
 mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t *thread);
 
+/**
+ * @brief Park the current thread on a sync-object wait list with a timeout
+ * @param[in] wait_list wait list of the sync object (queue/semaphore/event...)
+ * @param[in] wait_mask expected event mask stored on the parked thread (event
+ *            groups evaluate it on wake; pass 0 for objects without masks)
+ * @param[in] timeout_tick ((mini_os_tick_t)-1) = wait forever, otherwise park
+ *            in the time wheel for this many ticks
+ * @param[in] irq_level IRQ level saved by the caller with mini_os_irq_save();
+ *            the caller must have checked the wait condition while holding it
+ * @return MINI_OS_OK when woken by an event; MINI_OS_ERR_TIMEOUT when the
+ *         wheel timeout expired first; MINI_OS_ERR_INVAL on invalid arguments
+ * @note the thread is parked via wait_node on the wait list and (timed case)
+ *       via list_node in the time wheel; the wake side unlinks both, so the
+ *       caller resumes immediately on the event with no polling
+ * @note consumes the caller's critical section (restores irq_level itself)
+ *       so the condition check and the park stay atomic; thread context only
+ */
+mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level);
+
 MINI_OS_STATIC_INLINE mini_os_uint8_t mini_os_get_highest_priority(void)
 {
     mini_os_uint32_t group = g_priority;
@@ -133,6 +143,15 @@ mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_
 #endif
 
 mini_os_err_t mini_os_get_tick(mini_os_uint32_t *tick);
+
+/**
+ * @brief Remaining ticks until a deadline (tick-wrap safe)
+ * @param[in] deadline absolute tick value (now + timeout captured at entry)
+ * @return deadline - now; 0 when the deadline has been reached or passed
+ * @note for retry loops with a strict total timeout: re-park with the returned
+ *       remaining value instead of the original timeout
+ */
+mini_os_uint32_t mini_os_tick_until(mini_os_uint32_t deadline);
 
 /**
  * @brief Initialize the SysTick timer

@@ -40,7 +40,11 @@ struct mini_os_thread
 
     void                        *sp;                                    /**< Stack pointer for the thread must in first position in tcp */
     char                        thread_name[THREADS_NAME_LEN];          /**< Name of the thread */
-    mini_os_list_t              list_node;                              /**< List node for the thread */
+    mini_os_list_t              list_node;                              /**< List node for the thread (ready/running list or time wheel) */
+    mini_os_list_t              wait_node;                              /**< List node for sync-object wait lists (queue send/receive...) */
+    mini_os_list_t              *wait_list;                             /**< Wait list wait_node is parked on (MINI_OS_NULL = no sync wait) */
+    mini_os_bool_t              wait_done;                              /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
+    mini_os_uint32_t            wait_mask;                              /**< Expected event mask while parked on an event-group wait list */
     void                        (*entry)(void *);                       /**< Entry function for the thread */
     void                        *param;                                 /**< Parameter for the entry function */
     void                        *stack_addr;                            /**< Stack address for the thread */
@@ -235,8 +239,11 @@ mini_os_err_t mini_os_thread_delay_ms(                              mini_os_uint
 
 /**
  * @brief Delay until a specified ticks
- * @param[in] ticks Number of ticks to delay until
- * @return mini_os_err_t on success, 0 on failure
+ * @param[in] ticks absolute tick value to delay until
+ * @return mini_os_err_t MINI_OS_OK on success; MINI_OS_ERR_INVAL outside
+ *         thread context
+ * @note returns immediately when the target tick has already passed
+ *       (tick-wrap safe); thread context only
  */
 mini_os_err_t mini_os_thread_delay_tick_until(                      mini_os_uint32_t ticks);
 

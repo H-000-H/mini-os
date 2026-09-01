@@ -61,7 +61,8 @@ typedef signed long                         mini_os_user_data_t;          /**<mi
 #define MINI_OS_UINT8_MAX                   (0XFF)                       /**<uint8_t max*/
 #define MINI_OS_UINT16_MAX                  (0XFFFF)                     /**<uint16_t max*/
 #define MINI_OS_UINT32_MAX                  (0xFFFFFFFF)                 /**<uint32_t max*/
-
+#define MINI_OS_DELAY_FOREVER               (mini_os_uint32_t -1)        /**<delay forever */
+#define MINI_OS_WAIT_FOREVER                (mini_os_uint32_t -1)        /**<wait forever */
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                  mini-os-gcc-features-macro                                             */
 /*---------------------------------------------------------------------------------------------------------*/
