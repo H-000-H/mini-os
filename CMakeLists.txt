@@ -10,8 +10,6 @@ project(${CMAKE_PROJECT_NAME} C ASM)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# MCU 名仅在未提供时给默认值: 嵌入式场景 (父工程 add_subdirectory) 由父层按
-# Kconfig PLATFORM 推导或直接由工具链文件全局注入 -mcpu, 此处不再重复指定
 if(NOT MINI_OS_MCU)
     set(MINI_OS_MCU cortex-m3 CACHE STRING "ARM Cortex-M core (cortex-m0/m0+/m3/m4/m7)")
 endif()
@@ -34,12 +32,7 @@ set(MINI_OS_SRC
   ${MINI_OS_PORT_DIR}/port.S
 )
 
-# 事件组 (src/event.c) 条件编入 —— Kconfig CONFIG_MINI_OS_EVENT, 默认关闭。
-# 开关本体在 inc/mini_config.h (三层配置: CONFIG_MINI_OS_EVENT →
-# 外部 -D MINI_OS_EVENT → 内置 0), event.h / event.c 均以 #if MINI_OS_EVENT
-# 整体包裹; 此处再把源文件从编译单元列表里摘掉, 关闭时连空对象都不产生。
-# 独立构建 (无 mini_tree/.config) 时保持编入, 由 mini_config.h 兜底,
-# 因此本文件仍可脱离 mini_tree 单独 cmake 构建。
+
 if(NOT DEFINED MINI_TREE_CONFIG)
     set(MINI_TREE_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/../../.config")
 endif()
@@ -72,9 +65,6 @@ target_include_directories(
   ${CMAKE_PROJECT_NAME} PUBLIC ${MINI_OS_INC}
 )
 
-# 仅独立构建 (standalone) 时自带 arch flags;
-# 嵌入式构建继承父工程工具链 (arm-gcc-toolchain.cmake) 的全局 -mcpu/-mthumb,
-# 避免硬编码 -mcpu=cortex-m3 与实际 MCU 不一致
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     target_compile_options(
         ${CMAKE_PROJECT_NAME} PRIVATE
