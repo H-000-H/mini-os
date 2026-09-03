@@ -262,6 +262,37 @@ mini_os_cancel_pendsv:
     bx      lr
 
 @-----------------------------------------------------------------------------
+@ mini_os_barrier : data + instruction synchronization barrier (dsb + isb)
+@-----------------------------------------------------------------------------
+    .global mini_os_barrier
+    .thumb_func
+    .type mini_os_barrier, %function
+mini_os_barrier:
+    dsb
+    isb
+    bx      lr
+
+@-----------------------------------------------------------------------------
+@ mini_os_wfi : enter sleep, wait for the next interrupt
+@-----------------------------------------------------------------------------
+    .global mini_os_wfi
+    .thumb_func
+    .type mini_os_wfi, %function
+mini_os_wfi:
+    wfi
+    bx      lr
+
+@-----------------------------------------------------------------------------
+@ mini_os_pause : spin-loop wait hint (yield, NOP-equivalent on single core)
+@-----------------------------------------------------------------------------
+    .global mini_os_pause
+    .thumb_func
+    .type mini_os_pause, %function
+mini_os_pause:
+    yield
+    bx      lr
+
+@-----------------------------------------------------------------------------
 @ Set the priority of an NVIC interrupt
 @ mini_os_nvic_set_priority(irq_type, priority) return MINI_OS_OK
 @-----------------------------------------------------------------------------

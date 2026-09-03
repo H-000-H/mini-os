@@ -82,6 +82,22 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_tail(struct mini_os_list_node *
 }
 
 /**
+ * @brief Add a node to the head of a mini-os list (before its current first node)
+ * @param[in] new_node The node to add
+ * @param[in] head The head of the list
+ * @return MINI_OS_OK on success, negative error code on failure
+ * @note do NOT open-code this as mini_os_list_add(head, head, new_node):
+ *       handing the sentinel twice as (next, prev) re-points the sentinel at
+ *       the new node alone and orphans every node already queued on the list
+ */
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_list_head(struct mini_os_list_node *new_node, struct mini_os_list_node *head)
+{
+    if (new_node == MINI_OS_NULL || head == MINI_OS_NULL)
+        return MINI_OS_ERR_INVAL;
+    return mini_os_list_add(head->next, head, new_node);
+}
+
+/**
  * @brief Remove a node from a mini-os list
  * @param[in] node The node to remove
  * @return MINI_OS_OK on success, negative error code on failure

@@ -17,6 +17,7 @@ extern "C" {
 #include <mini_config.h>
 
 struct mini_os_semaphore;   
+struct mini_os_mutex;
 
 typedef struct mini_os_thread mini_os_thread_t;
 /**
@@ -25,7 +26,7 @@ typedef struct mini_os_thread mini_os_thread_t;
 typedef enum
 {
     MINI_OS_THREAD_STATE_INIT,                  /**< Thread is initialized */
-    MINI_OS_THREAD_STATE_RUNNING=0,             /**< Thread is running */
+    MINI_OS_THREAD_STATE_RUNNING,               /**< Thread is running */
     MINI_OS_THREAD_STATE_READY,                 /**< Thread is ready to run */
     MINI_OS_THREAD_STATE_SUSPENDED,             /**< Thread is suspended */
     MINI_OS_THREAD_STATE_BLOCKED,               /**< Thread is blocked */
@@ -45,13 +46,16 @@ struct mini_os_thread
     mini_os_list_t              wait_node;                              /**< List node for sync-object wait lists (queue send/receive...) */
     mini_os_list_t              *wait_list;                             /**< Wait list wait_node is parked on (MINI_OS_NULL = no sync wait) */
     mini_os_bool_t              wait_done;                              /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
+    struct mini_os_mutex        *wait_mutex;                            /**< Mutex this thread is blocked on (MINI_OS_NULL = no mutex wait) */
     void                        (*entry)(void *);                       /**< Entry function for the thread */
     void                        *param;                                 /**< Parameter for the entry function */
     void                        *stack_addr;                            /**< Stack address for the thread */
     mini_os_uint32_t            stack_size;                             /**< Stack size for the thread */
     mini_os_thread_state_t      state;                                  /**< State of the thread */
     mini_os_err_t               err;                                    /**< Error code for the thread */
-    mini_os_uint8_t             priority;                               /**< Priority of the thread */
+    mini_os_uint8_t             priority;                               /**< Effective priority (inheritance may raise it) */
+    mini_os_uint8_t             base_priority;                          /**< Priority requested by the creator/user, inheritance starts here */
+    mini_os_list_t              hold_list;                              /**< Mutexes currently held, linked through mini_os_mutex::hold_node */
     mini_os_uint32_t                round;                              /**< time wheel round (revolutions until expiry) */
     mini_os_tick_t              resume_time;                            /**< remaining delay ticks captured at suspend (0 = no wheel wait pending) */
     mini_os_uint8_t             wheel_slot;                             /**< wheel slot while BLOCKED in the wheel; MINI_OS_TICK_WHEEL = not in wheel */
@@ -137,7 +141,14 @@ mini_os_thread_t* mini_os_thread_create(                            const char* 
 /**
  * @brief Delete a thread
  * @param[in] thread Thread to delete
- * @return mini_os_err_t on success, 0 on failure
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL for a NULL target, the running
+ *         thread or an already terminated one, MINI_OS_ERR_BUSY while a joiner
+ *         has the corpse pinned
+ * @note every mutex the target still owns is force-released through the mutex
+ *       kill path: its parked waiters fail with MINI_OS_ERR_TIMEOUT and the
+ *       guarded data may be left inconsistent, so unlocking properly before the
+ *       delete is still the preferred way. Deleting a thread that only waits for
+ *       a mutex is safe, the owner drops the inherited boost when it releases
  */
 mini_os_err_t mini_os_thread_delete(                                mini_os_thread_t* thread);
 
@@ -145,7 +156,9 @@ mini_os_err_t mini_os_thread_delete(                                mini_os_thre
  * @brief Terminate the current thread (never returns)
  * @param[in] retval exit value, retrievable by a joiner
  * @note called automatically when a thread entry returns (via the wrapper);
- *       the TCB is queued for reclamation by the idle thread
+ *       every mutex still owned is force-released (see mini_os_thread_delete),
+ *       a joiner parked on this thread is woken, and the TCB is queued for
+ *       reclamation by the idle thread
  */
 MINI_OS_NO_RETURN void mini_os_thread_exit(void *retval);
 
@@ -174,7 +187,11 @@ mini_os_thread_t* mini_os_thread_create_static(                     const char* 
  * @param[in] thread Thread to delete
  * @param[in] stack_buffer Stack buffer for the thread
  * @param[in] task_buffer Task buffer for the thread
- * @return mini_os_err_t on success, 0 on failure
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL for a NULL argument, the running
+ *         thread or an already terminated one, MINI_OS_ERR_BUSY while a joiner has
+ *         the corpse pinned
+ * @note same teardown as mini_os_thread_delete() (held mutexes are force-released),
+ *       only the caller-provided storage is cleared instead of freed
  */
 mini_os_err_t mini_os_thread_delete_static(                         mini_os_thread_t* thread,
                                                                     mini_os_uint32_t* stack_buffer,
@@ -273,8 +290,24 @@ mini_os_err_t mini_os_thread_get_name(                              mini_os_thre
  * @param[in] thread Thread to set the priority for
  * @param[in] priority Priority to set
  * @return mini_os_err_t on success, 0 on failure
+ * @note a READY/RUNNING thread is re-linked into the ready/running list under
+ *       the new priority (bitmap updated, one critical section); BLOCKED or
+ *       SUSPENDED threads only change the field
+ * @note this changes the thread base priority. A thread boosted by mutex
+ *       inheritance keeps the highest requirement of the mutexes it holds until
+ *       the next inheritance event, then settles on max(this priority, waiters)
  */
 mini_os_err_t mini_os_thread_set_priority(                          mini_os_thread_t* thread, mini_os_uint8_t priority);
+
+/**
+ * @brief Apply an effective priority without touching the base priority
+ * @param[in] thread Thread to re-link
+ * @param[in] priority Effective priority to apply
+ * @return mini_os_err_t on success, 0 on failure
+ * @note kernel API for mutex priority inheritance: base_priority is left alone
+ *       so the next recompute can still derive the boost from it
+ */
+mini_os_err_t mini_os_thread_priority_apply(                        mini_os_thread_t* thread, mini_os_uint8_t priority);
 
 /**
  * @brief Get the priority of a thread
@@ -333,33 +366,41 @@ mini_os_err_t mini_os_thread_get_user_data(mini_os_thread_t* thread, mini_os_use
  */
 mini_os_err_t mini_os_thread_set_cleanup(mini_os_thread_t* thread, void (*cleanup)(void *), void *arg);
 
-#if defined(MINI_OS_THREAD_DETACH)
+#if MINI_OS_THREAD_DETACH
 /**
- * @brief Detach a thread
+ * @brief Detach a thread (hand its corpse back to the idle reaper)
  * @param[in] thread Thread to detach
- * @return mini_os_err_t on success, 0 on failure
+ * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL when thread is MINI_OS_NULL
+ * @note threads are created detached, so this is only needed to cancel the pin a
+ *       join installed or to release a corpse a joiner abandoned
  */
 mini_os_err_t mini_os_thread_detach(mini_os_thread_t* thread);
 
 /**
- * @brief Join a thread
+ * @brief Join a thread: block until it terminates, then collect its return value
  * @param[in] thread Thread to join
- * @param[out] thread_return Buffer to store the thread return value in
- * @param[in] timeout_tick Timeout tick for the join operation
- * @return mini_os_err_t on success, 0 on failure
+ * @param[out] thread_return Buffer to store the thread return value in (MINI_OS_NULL = discard)
+ * @param[in] timeout_tick 0 = poll, MINI_OS_WAIT_FOREVER = wait forever, otherwise
+ *            the maximum number of ticks to wait
+ * @return MINI_OS_OK when the thread terminated and the value was collected,
+ *         MINI_OS_ERR_INVAL on a NULL target, a self-join or no thread context,
+ *         MINI_OS_ERR_NOMEM when the join semaphore could not be created,
+ *         MINI_OS_ERR_AGAIN when timeout_tick is 0 and the target still runs,
+ *         MINI_OS_ERR_TIMEOUT when a timed wait expired
+ * @note the join pins the corpse so the idle reaper cannot free the TCB while the
+ *       return value is still needed; a successful join releases it again, a
+ *       timed-out one restores the previous detach state. A poll (timeout_tick 0)
+ *       and an already terminated target need neither the pin nor a semaphore.
+ *       Only one joiner at a time is supported, and deleting a pinned thread fails
+ *       with MINI_OS_ERR_BUSY.
  */
 mini_os_err_t mini_os_thread_join(mini_os_thread_t* thread, void **thread_return, mini_os_tick_t timeout_tick);
 #endif /* MINI_OS_THREAD_DETACH */
 
 /**
- * @brief Initialize the idle thread
- * @return mini_os_err_t on success, 0 on failure
- */
-mini_os_err_t mini_os_thread_idle_init(void);
-
-/**
  * @brief Get the idle thread handle
- * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
+ * @return idle thread handle, MINI_OS_NULL before mini_os_thread_idle_create()
+ *         succeeded
  */
 mini_os_thread_t* mini_os_thread_get_idle_handle(void);
 

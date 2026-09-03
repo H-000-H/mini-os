@@ -154,7 +154,7 @@ MINI_OS_STATIC_INLINE mini_os_uint8_t mini_os_get_highest_priority(void)
     return (mini_os_uint8_t)MINI_OS_CTZ(group);
 }
 
-#ifdef MINI_OS_LONG_TIME
+#if MINI_OS_LONG_TIME
 mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_t *overflow);
 #endif
 

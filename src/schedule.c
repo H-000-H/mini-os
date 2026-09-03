@@ -3,20 +3,14 @@
  * @file schedule.c
  * @brief Scheduler implementation
  * @author H-000-H
- * @details
- *  set thread A B C(same priority)
- *  -1：current is B (middle)
- *   sentinal → A → B(current) → C → sentinal
- *   current->next = C  → not sentinal → choose C ✓
- *
- *  -2：current is C (tail)
- *   sentinal → A → B → C(current) → sentinal
- *   current->next = sentinal → is sentinal → get sentinal.next = A → choose A（loop around）✓
- *
- *  -3：only one task
- *   sentinal → A(current thread) → sentinal
- *   current->next = sentinal → get sentinal.next = A → also self ✓
- *
+ * @details Round-robin selection inside one priority level, with threads A, B
+ *          and C sharing a priority:
+ *  - current is B (middle): sentinel -> A -> B(current) -> C -> sentinel,
+ *    current->next is C (not the sentinel), so C is chosen
+ *  - current is C (tail): sentinel -> A -> B -> C(current) -> sentinel,
+ *    current->next is the sentinel, so the list head (A) is chosen (wraps)
+ *  - single thread: sentinel -> A(current) -> sentinel, the successor is the
+ *    sentinel, so the head is A again and the thread keeps running
  */
 #include "schedule.h"
 #include "err.h"
@@ -25,27 +19,41 @@
 #include "port.h"
 #include "redef.h"
 #include "thread.h"
+#include "timer.h"
 
-/* Global ready bitmap (declared extern in schedule.h / thread.h) */
+/** @brief Ready bitmap: bit i set = priority i has a ready or running thread (declared extern in schedule.h / thread.h) */
 mini_os_uint32_t g_priority = 0u;
 
-/* Ready/running list head per priority (declared extern in schedule.h) */
+/** @brief Ready/running list head per priority (declared extern in schedule.h) */
 mini_os_list_t g_ready_running_list[MINI_OS_PRIORITY];
 
 extern mini_os_thread_t *mini_os_current_thread;
 
+/** @brief Priority level the scheduler selected on the last switch */
 static mini_os_uint8_t s_current_priority = 0;
 
+/** @brief Global OS tick counter, advanced by the SysTick handler */
 mini_os_uint32_t g_global_tick = 0;
-#ifdef MINI_OS_LONG_TIME
+#if MINI_OS_LONG_TIME
+/** @brief Number of times g_global_tick wrapped around (high half of a 64-bit tick) */
 mini_os_uint32_t g_global_tick_overflow = 0;
 #endif
-/* Time wheel (hierarchical tick wheel). MINI_OS_TICK_WHEEL must be a power of 2. */
+
+/** @brief Thread time wheel slots (MINI_OS_TICK_WHEEL must be a power of 2) */
 MINI_OS_ASSERT((MINI_OS_TICK_WHEEL & MINI_OS_TICK_WHEEL_MASK) == 0, "MINI_OS_TICK_WHEEL must be a power of 2");
 
 static mini_os_list_t s_wheel[MINI_OS_TICK_WHEEL];
+
+/** @brief Slot of the thread time wheel serviced on the next tick */
 static mini_os_uint32_t s_current_slot = 0;
 
+/**
+ * @brief Initialize the scheduler (ready lists, time wheel, slot cursor)
+ * @return MINI_OS_OK always
+ * @details every ready list head and every wheel slot becomes a self-referencing
+ *          sentinel, so the list helpers can be used before the first insert
+ * @note must run before any thread is created or started
+ */
 mini_os_err_t mini_os_schedule_init(void)
 {
     mini_os_uint32_t i;
@@ -63,6 +71,15 @@ mini_os_err_t mini_os_schedule_init(void)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Start the scheduler (performs the very first context switch)
+ * @return MINI_OS_OK once the first switch has been requested
+ * @details PendSV is put at the lowest priority and SysTick at the second
+ *          lowest, so user interrupts always preempt them; the PSP is primed
+ *          with the "no thread to restore" marker, CONTROL switches to PSP with
+ *          privileged mode, and a PendSV is forced before interrupts are
+ *          unmasked, so the switch happens as soon as they are
+ */
 mini_os_err_t mini_os_schedule_start(void)
 {
     MINI_OS_PENDSV_IRQ = 0xFF;   /* PendSV: lowest priority (never preempts user IRQs) */
@@ -74,9 +91,20 @@ mini_os_err_t mini_os_schedule_start(void)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Select the next thread to run and publish it as the current one
+ * @return MINI_OS_OK on success; MINI_OS_ERR_NODEV when no thread is ready
+ * @details
+ *  - the outgoing thread is demoted RUNNING -> READY before the selection
+ *  - same priority, still READY and still linked: round-robin to the list
+ *    successor, skipping the sentinel at the tail
+ *  - otherwise (preemption, or the current thread left the list): take the head
+ *    of the selected priority list
+ * @note mini_os_current_thread is the hand-off to the port, which restores SP
+ *       from it; the selected thread is marked RUNNING here
+ */
 mini_os_err_t mini_os_schedule_switch(void)
 {
-    /* Switch to the next ready thread, if any */
     mini_os_uint8_t old_priority;
     mini_os_uint8_t next_priority;
     mini_os_list_t *next_node;
@@ -102,8 +130,7 @@ mini_os_err_t mini_os_schedule_switch(void)
         mini_os_current_thread->state == MINI_OS_THREAD_STATE_READY &&
         mini_os_current_thread->list_node.next != &mini_os_current_thread->list_node)
     {
-        /* Same priority, current thread still runnable and linked: round-robin
-         * by advancing to its successor (wrap past the sentinel at the tail). */
+        /* round-robin: successor, wrap past the sentinel at the tail */
         next_node = mini_os_current_thread->list_node.next;
         if (next_node == &g_ready_running_list[s_current_priority])
         {
@@ -112,9 +139,7 @@ mini_os_err_t mini_os_schedule_switch(void)
     }
     else
     {
-        /* Different priority (preemption), or the current thread is no longer
-         * runnable (suspended/blocked/terminated) or left the list: take the
-         * head of the selected priority list directly. */
+        /* preemption, or the current thread is no longer runnable: take the head */
         next_node = g_ready_running_list[s_current_priority].next;
     }
 
@@ -124,25 +149,36 @@ mini_os_err_t mini_os_schedule_switch(void)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Trigger a context switch from thread context
+ * @return MINI_OS_OK always
+ * @note the IRQ lock keeps the PendSV request inside the caller's critical
+ *       section; the trailing barrier orders the ICSR write before the switch
+ */
 mini_os_err_t mini_os_schedule_yield(void)
 {
     mini_os_irq_t irq_level = mini_os_irq_save();
     mini_os_yield_trigger();
     mini_os_irq_restore(irq_level);
-    __asm__ volatile("dsb" ::: "memory");
-    __asm__ volatile("isb" ::: "memory");
+    mini_os_barrier();
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Trigger a context switch from ISR context when a thread was outranked
+ * @return MINI_OS_OK always
+ * @details only a numerically lower (more urgent) priority is worth a PendSV:
+ *          an equal or lower priority wake simply joins the ready list and is
+ *          picked up by the next regular switch, so the interrupted thread
+ *          resumes directly and the wake costs nothing
+ * @note mini_os_yield_trigger() ends with dsb, which orders the ICSR write
+ *       before the hardware exception return that tail-chains PendSV
+ */
 mini_os_err_t mini_os_schedule_yield_isr(void)
 {
     mini_os_irq_t irq_level = mini_os_irq_save();
 
-    /* Only a more urgent priority (numerically lower) is worth a PendSV: an
-     * equal or lower priority wake just joins the ready list and is picked up
-     * by the next regular switch, so the interrupted thread resumes directly.
-     * mini_os_yield_trigger() ends with dsb, which orders the ICSR write before
-     * the hardware exception return that tail-chains PendSV. */
+    /* only a more urgent thread is worth a PendSV */
     if (mini_os_current_thread != MINI_OS_NULL)
     {
         if (mini_os_get_highest_priority() < mini_os_current_thread->priority)
@@ -154,6 +190,13 @@ mini_os_err_t mini_os_schedule_yield_isr(void)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Add a thread to the tail of its priority ready/running list
+ * @param[in] thread thread to add
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when thread is MINI_OS_NULL,
+ *         already READY/RUNNING, or has an out-of-range priority
+ * @note sets the state to READY and the matching bit in the ready bitmap
+ */
 mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t *thread)
 {
     if (!thread || thread->state == MINI_OS_THREAD_STATE_READY ||
@@ -169,6 +212,14 @@ mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t *thread)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Remove a thread from its priority ready/running list
+ * @param[in] thread thread to remove
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when thread is MINI_OS_NULL,
+ *         not READY/RUNNING, or has an out-of-range priority
+ * @note clears the ready bitmap bit when the list becomes empty; the state is
+ *       left untouched, so the caller decides what the thread becomes next
+ */
 mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t *thread)
 {
     if (!thread || (thread->state != MINI_OS_THREAD_STATE_READY &&
@@ -191,6 +242,14 @@ mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t *th
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Unlink a wheel-parked thread from the thread time wheel
+ * @param[in] thread thread to unlink (must be BLOCKED)
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when thread is MINI_OS_NULL
+ *         or not BLOCKED
+ * @note clears round and marks the slot as "not in the wheel"; the state stays
+ *       BLOCKED, so the caller decides where the thread goes next
+ */
 mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t *thread)
 {
     if (!thread || thread->state != MINI_OS_THREAD_STATE_BLOCKED)
@@ -209,7 +268,14 @@ mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t *thread)
 }
 
 /**
- * @ time wheel tick scheduler
+ * @brief Advance the thread time wheel by one slot and release expired threads
+ * @details walks the slot that just came up: a thread with rounds left is
+ *          decremented and stays parked, an expired one is unlinked and made
+ *          ready. A thread that is also parked on a sync-object wait list is
+ *          unlinked from there and flagged wait_done = MINI_OS_FALSE, so its
+ *          mini_os_sync_wait_park() call reports MINI_OS_ERR_TIMEOUT
+ * @note called with interrupts masked from mini_os_systick_handler(); the walk
+ *       captures the next pointer first because list_remove re-links the node
  */
 static void mini_os_tick_decrement(void)
 {
@@ -231,8 +297,7 @@ static void mini_os_tick_decrement(void)
         thread->wheel_slot = (mini_os_uint8_t)MINI_OS_TICK_WHEEL;
         if (thread->wait_list != MINI_OS_NULL)
         {
-            /* timed out while parked on a sync-object wait list: cancel the
-             * sync wait; the waiter resumes and reports the timeout */
+            /* timed-out sync wait: cancel it, the waiter reports the timeout */
             mini_os_list_remove(&thread->wait_node);
             thread->wait_list = MINI_OS_NULL;
             thread->wait_done = MINI_OS_FALSE;
@@ -241,6 +306,17 @@ static void mini_os_tick_decrement(void)
     }
 }
 
+/**
+ * @brief Park a thread in the thread time wheel for a number of ticks
+ * @param[in] thread thread to park (must not be linked anywhere)
+ * @param[in] ticks delay length in ticks (> 0)
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when thread is MINI_OS_NULL
+ *         or ticks is 0
+ * @details slot = (current + ticks) mod wheel and round = whole revolutions
+ *          still to wait; the state becomes BLOCKED and the thread is queued at
+ *          the tail of that slot
+ * @note caller must hold interrupts disabled
+ */
 mini_os_err_t mini_os_wheel_insert(mini_os_thread_t *thread, mini_os_uint32_t ticks)
 {
     mini_os_uint32_t slot, round;
@@ -260,6 +336,14 @@ mini_os_err_t mini_os_wheel_insert(mini_os_thread_t *thread, mini_os_uint32_t ti
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Remaining ticks of a wheel-parked thread
+ * @param[in] thread thread to query
+ * @return remaining ticks (slot distance plus whole revolutions); 0 when the
+ *         thread is not parked in the wheel
+ * @note a zero slot distance means a whole wheel is left, reported as
+ *       MINI_OS_TICK_WHEEL to stay consistent with the round formula
+ */
 mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t *thread)
 {
     mini_os_uint32_t remain;
@@ -276,6 +360,14 @@ mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t *thread)
     return remain + thread->round * MINI_OS_TICK_WHEEL;
 }
 
+/**
+ * @brief Delay the current thread for a number of ticks
+ * @param[in] ticks delay length in ticks; 0 returns immediately
+ * @details leaves the ready/running list, parks the thread in the wheel and
+ *          yields, so it resumes when the delay expires
+ * @note kernel API behind mini_os_thread_delay_tick(); no-op outside thread
+ *       context, where there is nothing to park
+ */
 void mini_os_schedule_delay(mini_os_uint32_t ticks)
 {
     mini_os_irq_t irq_level;
@@ -293,6 +385,25 @@ void mini_os_schedule_delay(mini_os_uint32_t ticks)
     mini_os_schedule_yield();
 }
 
+/**
+ * @brief Park the current thread on a sync-object wait list with a timeout
+ * @param[in] wait_list wait list of the sync object (queue/semaphore/event...)
+ * @param[in] wait_mask expected event mask stored on the parked thread (event
+ *            groups evaluate it on wake; pass 0 for objects without a mask)
+ * @param[in] timeout_tick (mini_os_tick_t)-1 = wait forever, otherwise park in
+ *            the time wheel for this many ticks
+ * @param[in] irq_level IRQ level saved by the caller with mini_os_irq_save()
+ * @return MINI_OS_OK when woken by an event; MINI_OS_ERR_TIMEOUT when the wheel
+ *         timeout expired first; MINI_OS_ERR_INVAL on invalid arguments
+ * @details the park happens inside the caller's critical section, so the
+ *          condition check done by the caller and the park are atomic and no
+ *          event can slip through. The thread is queued through wait_node and,
+ *          for a finite timeout, also in the wheel through list_node (free,
+ *          because the thread just left the ready list); the wake side unlinks
+ *          both, so there is no retry loop and no deadline recomputation
+ * @note consumes the caller's critical section (restores irq_level itself) and
+ *       yields; back only after an event wake or a wheel timeout unlinked it
+ */
 mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level)
 {
     mini_os_thread_t *current;
@@ -306,8 +417,7 @@ mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t
         return MINI_OS_ERR_INVAL;
     }
 
-    /* Park inside the caller-held critical section so the condition check
-     * done by the caller and the park are atomic (no event can be missed). */
+    /* park atomically with the caller's condition check */
     current = mini_os_current_thread;
     (void)mini_os_remove_thread_from_ready_running_list(current);
     current->state = MINI_OS_THREAD_STATE_BLOCKED;
@@ -319,8 +429,7 @@ mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t
     mini_os_list_tail(&current->wait_node, wait_list);
     if (timeout_tick != (mini_os_tick_t)-1)
     {
-        /* list_node is free here (just left the ready list), so the wheel
-         * park and the wait-list park coexist on separate nodes */
+        /* separate node: the thread just left the ready list */
         (void)mini_os_wheel_insert(current, (mini_os_uint32_t)timeout_tick);
     }
     mini_os_irq_restore(irq_level);
@@ -365,6 +474,14 @@ static void mini_os_tick_slice_decrement(void)
 }
 #endif
 
+/**
+ * @brief SysTick handler: advance every wheel and the timer module by one tick
+ * @details with interrupts masked it runs the thread time wheel, the
+ *          round-robin slice (when MINI_OS_TIME_SLICE is on), the global tick
+ *          counter and then the timer wheel through mini_os_timer_tick()
+ * @note installed in the vector table; the overflow counter exists only with
+ *       MINI_OS_LONG_TIME
+ */
 void mini_os_systick_handler(void)
 {
     mini_os_irq_t irq_level = mini_os_irq_save();
@@ -373,16 +490,24 @@ void mini_os_systick_handler(void)
     mini_os_tick_slice_decrement();
 #endif
     g_global_tick++;
-#ifdef MINI_OS_LONG_TIME
+#if MINI_OS_LONG_TIME
     if (g_global_tick == 0u) /* wrapped around: count the overflow */
     {
         g_global_tick_overflow++;
     }
 #endif
+    mini_os_timer_tick(); /* advance the timer wheel, run/queue expired timers */
     mini_os_irq_restore(irq_level);
 }
 
-#ifdef MINI_OS_LONG_TIME
+#if MINI_OS_LONG_TIME
+/**
+ * @brief Read the 64-bit tick counter (tick value plus wrap count)
+ * @param[out] tick receives the low 32 bits (g_global_tick)
+ * @param[out] overflow receives the number of 32-bit wrap-arounds
+ * @return MINI_OS_OK always
+ * @note only compiled with MINI_OS_LONG_TIME
+ */
 mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_t *overflow)
 {
     *tick = g_global_tick;
@@ -391,12 +516,23 @@ mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_
 }
 #endif
 
+/**
+ * @brief Read the current OS tick counter
+ * @param[out] tick receives the tick count
+ * @return MINI_OS_OK always
+ */
 mini_os_err_t mini_os_get_tick(mini_os_tick_t *tick)
 {
     *tick = g_global_tick;
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Remaining ticks until an absolute deadline (tick-wrap safe)
+ * @param[in] deadline absolute tick value, captured at entry as now + timeout
+ * @return ticks left; 0 when the deadline has been reached or passed
+ * @note retry loops re-park with this value to keep the total timeout strict
+ */
 mini_os_uint32_t mini_os_tick_until(mini_os_uint32_t deadline)
 {
     mini_os_uint32_t now = g_global_tick; /* aligned 32-bit read is atomic */
@@ -408,6 +544,12 @@ mini_os_uint32_t mini_os_tick_until(mini_os_uint32_t deadline)
     return deadline - now;
 }
 
+/**
+ * @brief Configure and start the SysTick timer
+ * @param[in] ticks_per_ms ticks per millisecond; 0 selects the default rate
+ *            (MINI_OS_DEFAULT_SYSTICK)
+ * @note weak default: override it when the board needs another clock source
+ */
 MINI_OS_WEAK void mini_os_systick_init(uint32_t ticks_per_ms)
 {
     uint32_t reload;

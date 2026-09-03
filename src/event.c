@@ -4,6 +4,8 @@
  *        blocking wait with wait-list wake-up and time-wheel timeout)
  * @file event.c
  * @author H-000-H
+ * @note every waiter stores its expected mask on its own TCB (wait_mask), so
+ *       several threads can wait for different masks on the same group at once
  */
 #include "event.h"
 #include "err.h"
@@ -14,6 +16,14 @@
 
 #if MINI_OS_EVENT
 
+/**
+ * @brief Create an event group on the heap
+ * @param[in] event_id initial event flags
+ * @param[in] type MINI_OS_EVENT_WHOLE_TYPE (a set replaces all flags) or
+ *            MINI_OS_EVENT_OR_TYPE (a set ORs the bits in)
+ * @return event group handle on success; MINI_OS_NULL on out of memory
+ * @note auto-clear is enabled by default, so a satisfied wait consumes its bits
+ */
 mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini_os_event_type_t type)
 {
     mini_os_event_group_t* event_group = (mini_os_event_group_t*)mini_os_malloc(sizeof(mini_os_event_group_t));
@@ -30,6 +40,13 @@ mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini
     return event_group;
 }
 
+/**
+ * @brief Create an event group over caller-provided storage
+ * @param[in,out] event_group storage for the descriptor
+ * @param[in] event_id initial event flags
+ * @param[in] type MINI_OS_EVENT_WHOLE_TYPE or MINI_OS_EVENT_OR_TYPE
+ * @return event group handle on success; MINI_OS_NULL when event_group is MINI_OS_NULL
+ */
 mini_os_event_group_t* mini_os_event_group_create_static(mini_os_event_group_t* event_group,mini_os_uint32_t event_id,mini_os_event_type_t type)
 {
     if (event_group == MINI_OS_NULL)
@@ -44,6 +61,14 @@ mini_os_event_group_t* mini_os_event_group_create_static(mini_os_event_group_t* 
     return event_group;
 }
 
+/**
+ * @brief Delete a heap-created event group and free its memory
+ * @param[in] event_group event group to delete
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on invalid arguments;
+ *         MINI_OS_ERR_BUSY while threads are still blocked on the group;
+ *         MINI_OS_ERR_NOTSUPP for statically created groups
+ * @note thread context only
+ */
 mini_os_err_t mini_os_event_group_delete(mini_os_event_group_t* event_group)
 {
     mini_os_irq_t irq;
@@ -70,7 +95,12 @@ mini_os_err_t mini_os_event_group_delete(mini_os_event_group_t* event_group)
 }
 
 /**
- * @brief Check whether the current flags satisfy a waiter's mask
+ * @brief Check whether the current flags satisfy a mask
+ * @param[in] event_group event group to evaluate
+ * @param[in] mask mask to test
+ * @return MINI_OS_TRUE when satisfied; MINI_OS_FALSE otherwise
+ * @details WHOLE type requires every bit of mask to be set, OR type requires
+ *          any bit of mask to be set
  */
 static mini_os_bool_t mini_os_event_satisfied(const mini_os_event_group_t* event_group, mini_os_uint32_t mask)
 {
@@ -82,12 +112,17 @@ static mini_os_bool_t mini_os_event_satisfied(const mini_os_event_group_t* event
 }
 
 /**
- * @brief Wake every waiter whose mask is satisfied (caller holds interrupts disabled)
+ * @brief Wake every waiter whose mask is now satisfied
+ * @param[in] event_group event group whose wait list is scanned
  * @return MINI_OS_TRUE when at least one thread was moved back to the ready list
- * @param[in] event_group tcp
+ * @details each satisfied waiter leaves the wait list and, when it was parked in
+ *          the time wheel for a timeout, the wheel as well; wait_done is set so
+ *          its mini_os_sync_wait_park() returns MINI_OS_OK
  * @note bits are NOT consumed here even with is_auto_clear: each woken waiter
- *       re-checks the condition and consumes its own bits in mini_os_event_wait,
- *       so a losing waiter can simply park again instead of missing the event
+ *       re-checks the condition and consumes its own bits in
+ *       mini_os_event_wait(), so a losing waiter can simply park again instead
+ *       of missing the event
+ * @note caller must hold interrupts disabled
  */
 static mini_os_bool_t mini_os_event_wake_satisfied(mini_os_event_group_t* event_group)
 {
@@ -119,8 +154,12 @@ static mini_os_bool_t mini_os_event_wake_satisfied(mini_os_event_group_t* event_
 }
 
 /**
- * @brief Update the flags and wake satisfied waiters (IRQ-safe)
+ * @brief Update the flags of a group and wake the satisfied waiters
+ * @param[in,out] event_group event group to update
+ * @param[in] event flags to apply (WHOLE replaces all flags, OR sets the bits)
  * @return MINI_OS_TRUE when at least one waiter was moved back to ready
+ * @note the whole update runs with interrupts masked, so no waiter can miss the
+ *       flags it was waiting for
  */
 static mini_os_bool_t mini_os_event_apply(mini_os_event_group_t* event_group, mini_os_uint32_t event)
 {
@@ -141,6 +180,14 @@ static mini_os_bool_t mini_os_event_apply(mini_os_event_group_t* event_group, mi
     return woken;
 }
 
+/**
+ * @brief Set event flags and wake the satisfied waiters
+ * @param[in,out] event_group event group to update
+ * @param[in] event flags to set (WHOLE replaces all flags, OR sets the bits)
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when event_group is MINI_OS_NULL
+ * @note thread context only: a woken thread may outrank the caller, so a yield
+ *       is triggered (use the _isr variant from ISR context)
+ */
 mini_os_err_t mini_os_event_set_group(mini_os_event_group_t* event_group, mini_os_uint32_t event)
 {
     mini_os_bool_t woken;
@@ -158,6 +205,15 @@ mini_os_err_t mini_os_event_set_group(mini_os_event_group_t* event_group, mini_o
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Set event flags from ISR context (never blocks, never yields)
+ * @param[in,out] event_group event group to update
+ * @param[in] event flags to set (WHOLE replaces all flags, OR sets the bits)
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when event_group is MINI_OS_NULL
+ * @note wakes every satisfied waiter but does not trigger the context switch:
+ *       the ISR caller ends with mini_os_schedule_yield_isr(), which sets PendSV
+ *       pending only when a more urgent thread became ready
+ */
 mini_os_err_t mini_os_event_set_group_isr(mini_os_event_group_t* event_group, mini_os_uint32_t event)
 {
     if (event_group == MINI_OS_NULL)
@@ -171,6 +227,12 @@ mini_os_err_t mini_os_event_set_group_isr(mini_os_event_group_t* event_group, mi
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Read the current flags of a group
+ * @param[in] event_group event group to query
+ * @param[out] event receives the current flags
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on a NULL argument
+ */
 mini_os_err_t mini_os_event_get_group(mini_os_event_group_t *event_group, mini_os_uint32_t *event)
 {
     mini_os_irq_t irq;
@@ -185,6 +247,12 @@ mini_os_err_t mini_os_event_get_group(mini_os_event_group_t *event_group, mini_o
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Clear event flags of a group
+ * @param[in,out] event_group event group to update
+ * @param[in] event flags to clear
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when event_group is MINI_OS_NULL
+ */
 mini_os_err_t mini_os_event_clear_group(mini_os_event_group_t* event_group, mini_os_uint32_t event)
 {
     mini_os_irq_t irq;
@@ -199,6 +267,14 @@ mini_os_err_t mini_os_event_clear_group(mini_os_event_group_t* event_group, mini
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Configure whether satisfied bits are consumed by a successful wait
+ * @param[in,out] event_group event group to configure
+ * @param[in] is_auto_clear MINI_OS_TRUE = consume the satisfied bits on a
+ *            successful wait; MINI_OS_FALSE = keep them until they are cleared
+ *            with mini_os_event_clear_group()
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when event_group is MINI_OS_NULL
+ */
 mini_os_err_t mini_os_event_group_set_auto_clear(mini_os_event_group_t* event_group, mini_os_bool_t is_auto_clear)
 {
     mini_os_irq_t irq;
@@ -213,6 +289,27 @@ mini_os_err_t mini_os_event_group_set_auto_clear(mini_os_event_group_t* event_gr
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Wait for event flags of a group
+ * @param[in,out] event_group event group to wait on
+ * @param[in] mask flags to wait for (> 0)
+ * @param[in] timeout_tick 0 = non-blocking, (mini_os_tick_t)-1 = block until the
+ *            mask is satisfied, otherwise block for at most this many ticks
+ * @param[out] out_event on success receives the bits of mask that were set
+ *             (MINI_OS_NULL when the caller does not need them)
+ * @return MINI_OS_OK when the mask is satisfied; MINI_OS_ERR_INVAL on invalid
+ *         arguments or no thread context for a blocking wait; MINI_OS_ERR_AGAIN
+ *         when non-blocking and not satisfied; MINI_OS_ERR_TIMEOUT when the
+ *         finite timeout expires
+ * @details the condition is evaluated inside the caller's critical section and,
+ *          when it fails, the thread parks on the wait list through wait_node
+ *          and in the time wheel through list_node, so a set event cannot be
+ *          missed; a retry re-parks with the remaining time only, which keeps
+ *          the total timeout strict
+ * @note OR type: any bit of mask set satisfies the wait; WHOLE type: all bits of
+ *       mask must be set. With auto-clear enabled the satisfied bits are
+ *       consumed by the waiter, and out_event is filled before that happens
+ */
 mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uint32_t mask, mini_os_tick_t timeout_tick, mini_os_uint32_t* out_event)
 {
     mini_os_uint32_t deadline = 0;

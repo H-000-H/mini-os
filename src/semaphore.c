@@ -1,9 +1,11 @@
-/*
+/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @brief semaphore implementation
  * @file semaphore.c
  * @author H-000-H
- * @note
+ * @note a give hands the unit straight to the oldest parked taker instead of
+ *       incrementing the count, so a woken take needs no retry loop and a
+ *       binary semaphore can satisfy several parked takers in a row
  */
 #include "semaphore.h"
 #include "err.h"
@@ -15,7 +17,14 @@
 #include "thread.h"
 
 #if MINI_OS_FIND_BY_NAME
+/** @brief Global registry of every semaphore, used by mini_os_get_semaphore_by_name() */
 static mini_os_list_t g_semaphore_list;
+
+/**
+ * @brief Initialize the global semaphore registry (constructor, runs before main)
+ * @note the list head becomes a self-referencing sentinel, so semaphores can be
+ *       linked before the scheduler is up
+ */
 MINI_OS_CONSTRUCTOR(MINI_OS_SEMAPHORE_REGISTRY_CONSTRUCTOR) void mini_os_semaphore_registry_init(void)
 {
     mini_os_list_init(&g_semaphore_list);
@@ -23,26 +32,13 @@ MINI_OS_CONSTRUCTOR(MINI_OS_SEMAPHORE_REGISTRY_CONSTRUCTOR) void mini_os_semapho
 #endif
 
 /**
- * @brief Copy a name into the fixed-size name field (always NUL-terminated)
- */
-static void mini_os_semaphore_name_set(char* dst, const char* name)
-{
-    mini_os_size_t i = 0;
-
-    if (name != MINI_OS_NULL)
-    {
-        while (name[i] != '\0' && i < MINI_OS_SEMAPHORE_NAME_LEN - 1)
-        {
-            dst[i] = name[i];
-            i++;
-        }
-    }
-    dst[i] = '\0';
-}
-
-/**
- * @brief Wake the oldest waiter of a semaphore (caller holds interrupts disabled)
+ * @brief Wake the oldest waiter of a semaphore
+ * @param[in] semaphore semaphore whose wait list is served
  * @return MINI_OS_TRUE when a thread was moved back to the ready list
+ * @details the waiter leaves the wait list and, when it was parked in the time
+ *          wheel for a timeout, the wheel as well; wait_done is set so its
+ *          mini_os_semaphore_take() returns MINI_OS_OK
+ * @note caller must hold interrupts disabled
  */
 static mini_os_bool_t mini_os_semaphore_wake_one(mini_os_semaphore_t* semaphore)
 {
@@ -86,7 +82,7 @@ static mini_os_err_t mini_os_semaphore_init(mini_os_semaphore_t* semaphore,
         return MINI_OS_ERR_INVAL;
     }
 
-    mini_os_semaphore_name_set(semaphore->name, name);
+    mini_os_set_name(semaphore->name, name, MINI_OS_SEMAPHORE_NAME_LEN);
     semaphore->max_count = max_count;
     semaphore->count = count;
     semaphore->is_static = is_static;
@@ -104,6 +100,13 @@ static mini_os_err_t mini_os_semaphore_init(mini_os_semaphore_t* semaphore,
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Create a counting semaphore on the heap
+ * @param[in] name semaphore name (MINI_OS_NULL = unnamed)
+ * @param[in] max_count capacity (>= 1; 1 makes it a binary semaphore)
+ * @param[in] count initial count (<= max_count, 0 = unavailable at start)
+ * @return semaphore handle on success; MINI_OS_NULL on failure
+ */
 mini_os_semaphore_t* mini_os_semaphore_create(const char* name, mini_os_uint16_t max_count, mini_os_uint16_t count)
 {
     mini_os_semaphore_t* semaphore = (mini_os_semaphore_t*)mini_os_malloc(sizeof(mini_os_semaphore_t));
@@ -120,6 +123,11 @@ mini_os_semaphore_t* mini_os_semaphore_create(const char* name, mini_os_uint16_t
     return semaphore;
 }
 
+/**
+ * @brief Create a binary semaphore on the heap (max_count 1, created given)
+ * @param[in] name semaphore name (MINI_OS_NULL = unnamed)
+ * @return semaphore handle on success; MINI_OS_NULL on failure
+ */
 mini_os_semaphore_t* mini_os_binary_semaphore_create(const char* name)
 {
     mini_os_semaphore_t* semaphore = (mini_os_semaphore_t*)mini_os_malloc(sizeof(mini_os_semaphore_t));
@@ -136,6 +144,14 @@ mini_os_semaphore_t* mini_os_binary_semaphore_create(const char* name)
     return semaphore;
 }
 
+/**
+ * @brief Create a counting semaphore over caller-provided storage
+ * @param[in] name semaphore name (MINI_OS_NULL = unnamed)
+ * @param[in] max_count capacity (>= 1; 1 makes it a binary semaphore)
+ * @param[in] count initial count (<= max_count, 0 = unavailable at start)
+ * @param[in] semaphore storage for the semaphore descriptor
+ * @return semaphore handle on success; MINI_OS_NULL on failure
+ */
 mini_os_semaphore_t* mini_os_semaphore_create_static(const char* name,
                                                      mini_os_uint16_t max_count,
                                                      mini_os_uint16_t count,
@@ -152,6 +168,12 @@ mini_os_semaphore_t* mini_os_semaphore_create_static(const char* name,
     return semaphore;
 }
 
+/**
+ * @brief Create a binary semaphore over caller-provided storage (max_count 1, created given)
+ * @param[in] name semaphore name (MINI_OS_NULL = unnamed)
+ * @param[in] semaphore storage for the semaphore descriptor
+ * @return semaphore handle on success; MINI_OS_NULL on failure
+ */
 mini_os_semaphore_t* mini_os_binary_semaphore_create_static(const char* name, mini_os_semaphore_t* semaphore)
 {
     if (semaphore == MINI_OS_NULL)
@@ -165,6 +187,16 @@ mini_os_semaphore_t* mini_os_binary_semaphore_create_static(const char* name, mi
     return semaphore;
 }
 
+/**
+ * @brief Collapse a counting semaphore into a binary one (max_count = 1)
+ * @param[in,out] semaphore semaphore to convert
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
+ *         MINI_OS_ERR_BUSY unless the semaphore is saturated
+ * @details only a saturated semaphore can be collapsed: count == max_count means
+ *          every unit is home and nobody still owes a give, so shrinking the
+ *          capacity to 1 cannot swallow an outstanding unit. A parked waiter is
+ *          rejected too, because it implies count == 0, i.e. all units are held
+ */
 mini_os_err_t mini_os_semaphore_to_binary(mini_os_semaphore_t* semaphore)
 {
     mini_os_err_t ret = MINI_OS_OK;
@@ -193,6 +225,17 @@ mini_os_err_t mini_os_semaphore_to_binary(mini_os_semaphore_t* semaphore)
     return ret;
 }
 
+/**
+ * @brief Widen a binary semaphore into a counting one
+ * @param[in,out] semaphore semaphore to convert
+ * @param[in] max_count new capacity (>= 2)
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL
+ *         or max_count < 2; MINI_OS_ERR_NOTSUPP when the semaphore is not binary
+ * @note widening can never swallow a unit, so the count is left as it is: an
+ *       outstanding one (count 0) stays owed by its holder, a published one
+ *       (count 1) stays available to the next taker. Parked waiters are not
+ *       woken by the widening itself, only by the next give
+ */
 mini_os_err_t mini_os_semaphore_to_counting(mini_os_semaphore_t* semaphore, mini_os_uint16_t max_count)
 {
     mini_os_err_t ret = MINI_OS_OK;
@@ -219,6 +262,15 @@ mini_os_err_t mini_os_semaphore_to_counting(mini_os_semaphore_t* semaphore, mini
     return ret;
 }
 
+/**
+ * @brief Delete a heap-created semaphore and free its memory
+ * @param[in] semaphore semaphore to delete
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
+ *         MINI_OS_ERR_NOTSUPP for caller-provided storage; MINI_OS_ERR_BUSY while
+ *         threads are still parked on it
+ * @note waking parked threads is the caller's job, so the descriptor is never
+ *       pulled from under a waiter
+ */
 mini_os_err_t mini_os_semaphore_delete(mini_os_semaphore_t* semaphore)
 {
     mini_os_irq_t irq;
@@ -247,6 +299,13 @@ mini_os_err_t mini_os_semaphore_delete(mini_os_semaphore_t* semaphore)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Delete a static semaphore (clears the caller storage, never frees)
+ * @param[in] semaphore semaphore to delete
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
+ *         MINI_OS_ERR_NOTSUPP for heap storage; MINI_OS_ERR_BUSY while threads
+ *         are still parked on it
+ */
 mini_os_err_t mini_os_semaphore_delete_static(mini_os_semaphore_t* semaphore)
 {
     mini_os_irq_t irq;
@@ -275,6 +334,12 @@ mini_os_err_t mini_os_semaphore_delete_static(mini_os_semaphore_t* semaphore)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Read the current count of a semaphore
+ * @param[in] semaphore semaphore to query
+ * @param[out] count receives the current count
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on a NULL argument
+ */
 mini_os_err_t mini_os_semaphore_get_count(mini_os_semaphore_t* semaphore, mini_os_uint16_t* count)
 {
     mini_os_irq_t irq;
@@ -290,6 +355,21 @@ mini_os_err_t mini_os_semaphore_get_count(mini_os_semaphore_t* semaphore, mini_o
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Take a semaphore (consume a unit, park the caller when empty)
+ * @param[in] semaphore semaphore to take
+ * @param[in] timeout_tick 0 = do not wait, MINI_OS_WAIT_FOREVER = wait forever,
+ *            otherwise the maximum number of ticks to wait
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL
+ *         or there is no thread context for a blocking wait; MINI_OS_ERR_AGAIN
+ *         when the count is 0 and timeout_tick is 0; MINI_OS_ERR_TIMEOUT when the
+ *         wait expired
+ * @details the park happens inside the caller's critical section, so a give
+ *          cannot slip between the count check and the park
+ * @note no retry loop and no deadline recomputation: MINI_OS_OK means the giver
+ *       handed the unit to this thread directly (RT-Thread style), so the count
+ *       is not touched again here
+ */
 mini_os_err_t mini_os_semaphore_take(mini_os_semaphore_t* semaphore, mini_os_tick_t timeout_tick)
 {
     mini_os_err_t parked;
@@ -330,11 +410,25 @@ mini_os_err_t mini_os_semaphore_take(mini_os_semaphore_t* semaphore, mini_os_tic
     return (parked == MINI_OS_ERR_TIMEOUT) ? MINI_OS_ERR_TIMEOUT : parked;
 }
 
+/**
+ * @brief Try to take a semaphore without blocking (timeout_tick 0 equivalent)
+ * @param[in] semaphore semaphore to take
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
+ *         MINI_OS_ERR_AGAIN when the count is 0
+ */
 mini_os_err_t mini_os_semaphore_try_take(mini_os_semaphore_t* semaphore)
 {
     return mini_os_semaphore_take(semaphore, 0);   
 }
 
+/**
+ * @brief Give a semaphore (hand the unit to the oldest waiter, else count++)
+ * @param[in] semaphore semaphore to give
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
+ *         MINI_OS_ERR_BUSY when saturated with no waiter
+ * @details with a waiter parked the count stays untouched and, because the
+ *          woken thread may outrank the caller, a yield is triggered
+ */
 mini_os_err_t mini_os_semaphore_give(mini_os_semaphore_t* semaphore)
 {
     mini_os_bool_t woken;
@@ -364,6 +458,14 @@ mini_os_err_t mini_os_semaphore_give(mini_os_semaphore_t* semaphore)
     return MINI_OS_OK;
 }
 
+/**
+ * @brief Give a semaphore from ISR context (non-blocking, no context switch)
+ * @param[in] semaphore semaphore to give
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
+ *         MINI_OS_ERR_BUSY when saturated with no waiter
+ * @note never triggers the context switch itself: call
+ *       mini_os_schedule_yield_isr() once at the end of the ISR
+ */
 mini_os_err_t mini_os_semaphore_give_isr(mini_os_semaphore_t* semaphore)
 {
     mini_os_bool_t woken;
@@ -392,6 +494,12 @@ mini_os_err_t mini_os_semaphore_give_isr(mini_os_semaphore_t* semaphore)
 }
 
 #if MINI_OS_FIND_BY_NAME
+/**
+ * @brief Find a semaphore by name
+ * @param[in] name name to look for
+ * @return semaphore handle on success; MINI_OS_NULL when name is MINI_OS_NULL or
+ *         no semaphore carries that name
+ */
 mini_os_semaphore_t* mini_os_get_semaphore_by_name(const char* name)
 {
     mini_os_list_t* node;

@@ -52,7 +52,9 @@ typedef signed long                         mini_os_user_data_t;          /**<mi
 #define MINI_OS_TRUE                        (1)                         /**<true*/
 #define MINI_OS_FALSE                       (0)                         /**<false*/
 
-#ifdef MINI_OS_NULL_TO_STANDARD
+/* MINI_OS_NULL_TO_STANDARD is always defined (0 or 1) by mini_config.h:
+ * #ifdef would be true for the disabled case too, so test the value. */
+#if MINI_OS_NULL_TO_STANDARD
 #define MINI_OS_NULL                        ((void *)0)                 /**<null*/
 #else
 #define MINI_OS_NULL                        (0)                         /**<null*/
@@ -205,11 +207,11 @@ typedef mini_os_uint32_t mini_os_atomic_uint32_t;         /**<mini-os atomic uin
 #define MINI_OS_ATOMIC_SUB_FETCH(ptr, value, mem) __atomic_sub_fetch((ptr), (value), (mem))         /**<mini-os atomic sub fetch*/
 #define MINI_OS_ATOMIC_FETCH_ADD(ptr, value, mem) __atomic_fetch_add((ptr), (value), (mem))         /**<mini-os atomic fetch add*/
 #define MINI_OS_ATOMIC_FETCH_SUB(ptr, value, mem) __atomic_fetch_sub((ptr), (value), (mem))         /**<mini-os atomic fetch sub*/
+#define MINI_OS_ATOMIC_TEST_AND_SET(ptr,mem)      __atomic_test_and_set((ptr), (mem))               /**<mini-os atomic test and set*/
 #define MINI_OS_ATOMIC_CAS(ptr, expected, desired, mem_success, mem_fail)\
         __atomic_compare_exchange_n((ptr), (expected), (desired),MINI_OS_TRUE, (mem_success), (mem_fail))       /**<mini-os atomic compare exchange*/
 #define MINI_OS_ATOMIC_EXCHANGE(ptr, value, mem) __atomic_exchange_n((ptr), (value), (mem))         /**<mini-os atomic exchange*/
 #define MINI_OS_ATOMIC_INIT(ptr,val) MINI_OS_ATOMIC_STORE((ptr), (val), MINI_OS_RELAXED)            /**<mini-os atomic init*/
-#define MINI_OS_ASSERT(condition, fmt)            _Static_assert(condition, fmt)                    /**<mini-os assert*/
 #else
 typedef mini_os_volatile_int8_t  mini_os_atomic_int8_t;            /**<mini-os atomic int8_t*/
 typedef mini_os_volatile_uint8_t mini_os_atomic_uint8_t;           /**<mini-os atomic uint8_t*/
@@ -411,6 +413,7 @@ MINI_OS_ATOMIC_EXCHANGE_FN(uint32, mini_os_uint32_t, mini_os_volatile_uint32_t)
         mini_os_volatile_uint32_t *: mini_os_atomic_exchange_uint32 \
     )((ptr), (value))                    /**<mini-os atomic exchange*/
 
+#define MINI_OS_ATOMIC_TEST_AND_SET(ptr, mem)      (MINI_OS_ATOMIC_EXCHANGE((ptr), 1, (mem))!=0)
 #define MINI_OS_ATOMIC_RUNTIME_INIT(p, val) MINI_OS_ATOMIC_STORE((p), (val), MINI_OS_RELAXED)  /**< runtime init = relaxed store */
 #define MINI_OS_ASSERT(condition, fmt)              _Static_assert(condition, fmt)                  /**<mini-os assert*/
 #endif
@@ -518,6 +521,26 @@ MINI_OS_STATIC_INLINE mini_os_int32_t mini_os_strcmp_fallback(const char* s1, co
 #define MINI_OS_STRCMP(s1, s2)            mini_os_strcmp_fallback((s1), (s2))    /**<strcmp: pure C fallback*/
 #endif
 /**
+ * @brief Copy a name into a fixed buffer (bounded, always NUL-terminated)
+ * @param[out] dst destination buffer
+ * @param[in] name source string, may be MINI_OS_NULL (then dst becomes empty)
+ * @param[in] size total size of dst buffer (at most size - 1 chars are copied)
+ */
+MINI_OS_STATIC_INLINE void mini_os_set_name(char* dst, const char* name, mini_os_size_t size)
+{
+    mini_os_size_t i = 0u;
+
+    if (name != MINI_OS_NULL)
+    {
+        while (name[i] != '\0' && i < size - 1u)
+        {
+            dst[i] = name[i];
+            i++;
+        }
+    }
+    dst[i] = '\0';
+}
+/**
  * @brief Align a value up to a power-of-2 boundary
  * @param[in] x value to align
  * @param[in] a alignment (must be a power of 2)
@@ -533,6 +556,8 @@ MINI_OS_STATIC_INLINE mini_os_int32_t mini_os_strcmp_fallback(const char* s1, co
  */
 #define MINI_OS_MEMORY_ALIGN_DOWN(x,a) \
     (((size_t)(x)) & ~((size_t)(a)-1U))
+
+#define MINI_OS_ASSERT(condition, fmt)            _Static_assert(condition, fmt)                    /**<mini-os assert*/
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                      container_of                                                       */
 /*---------------------------------------------------------------------------------------------------------*/

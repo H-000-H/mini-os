@@ -28,6 +28,26 @@ void mini_os_start_first_thread(void);
 
 void mini_os_yield_trigger(void);
 
+/**
+ * @brief Data + instruction synchronization barrier (dsb + isb)
+ * @note call after a PendSV-related register write that must be observed
+ *       before the code continues; implemented in port.S
+ */
+void mini_os_barrier(void);
+
+/**
+ * @brief Enter sleep until the next interrupt (wfi)
+ * @note used by the idle thread loop; implemented in port.S
+ */
+void mini_os_wfi(void);
+
+/**
+ * @brief Spin-loop wait hint (yield instruction, NOP-equivalent on single-core
+ *        Cortex-M; pays off on future multicore / other-arch ports)
+ * @note used by the atomic spinlock backoff loop; implemented in port.S
+ */
+void mini_os_pause(void);
+
 mini_os_err_t mini_os_nvic_set_priority(mini_os_uint32_t irq, mini_os_uint32_t priority);
 
 void mini_os_psp_set(mini_os_uint32_t psp);

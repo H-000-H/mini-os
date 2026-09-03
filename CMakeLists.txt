@@ -12,6 +12,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(MINI_OS_MCU cortex-m3 CACHE STRING "ARM Cortex-M core (cortex-m0/m0+/m3/m4/m7)")
 
+set(MINI_OS_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/arch/arm/cortex-m/port)
+
 set(MINI_OS_INC
   ${CMAKE_CURRENT_SOURCE_DIR}/inc
 )
@@ -21,23 +23,20 @@ set(MINI_OS_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/queue.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/schedule.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/thread.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/port/port.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/port/port.S
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/mutex.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/semaphore.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/timer.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/event.c
+  ${MINI_OS_PORT_DIR}/port.c
+  ${MINI_OS_PORT_DIR}/port.S
 )
 
 add_library(${CMAKE_PROJECT_NAME}
     STATIC ${MINI_OS_SRC}
-    inc/event.h
-    src/event.c
 )
 
 target_include_directories(
   ${CMAKE_PROJECT_NAME} PRIVATE ${MINI_OS_INC}
-  ${CMAKE_CURRENT_SOURCE_DIR}/port
-)
-
-target_sources(
-  ${CMAKE_PROJECT_NAME} PRIVATE ${MINI_OS_SRC}
 )
 
 target_compile_options(

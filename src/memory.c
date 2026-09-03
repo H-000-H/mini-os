@@ -39,7 +39,7 @@ static void mini_os_memory_freelist_push(struct mini_os_memory* pool, mini_os_bu
 {
     blk->magic = MINI_OS_MEMORY_MAGIC_FREE;
     pool->free_size += MINI_OS_MEMORY_HDR_SIZE + blk->size;
-    mini_os_list_add(pool->free_list.next, &pool->free_list, &blk->node);
+    mini_os_list_head(&blk->node, &pool->free_list);
 }
 
 /**
@@ -278,8 +278,12 @@ static void mini_os_slab_zone_link(mini_os_uint8_t* base, mini_os_size_t zone_si
 
 /**
  * @brief Take one slot from the given size class
+ * @param[in] free_list per-class free slot lists
+ * @param[in] cls size class index
  * @return slot pointer on success; MINI_OS_NULL when the class is exhausted
  *         (caller falls back to the free list)
+ * @note the slot is unlinked first: once it is occupied the next-pointer area
+ *       yields to user data and the pointer is dropped
  */
 static void* mini_os_slab_class_alloc(mini_os_single_list_t* free_list, mini_os_uint32_t cls)
 {
@@ -291,7 +295,6 @@ static void* mini_os_slab_class_alloc(mini_os_single_list_t* free_list, mini_os_
     }
     slot = free_list[cls].next;
     mini_os_single_list_remove(slot, &free_list[cls]);
-    /* Occupied: the next-pointer area yields to user data (the pointer is dropped) */
     return (void*)slot;
 }
 
@@ -411,6 +414,20 @@ static mini_os_int32_t mini_os_memory_slab_free(struct mini_os_memory* pool, voi
 /* Pool API                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * @brief Initialize a memory pool (the whole segment is merged into the free list)
+ * @param[in] pool pool descriptor (storage provided by the caller)
+ * @param[in] config pool configuration (name/static_mem/static_len)
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL invalid arguments or a pool
+ *         smaller than one header plus one minimum block; MINI_OS_ERR_NOSPC
+ *         segment table error; MINI_OS_ERR_NOMEM with CONFIG_OPEN_SLAB when not
+ *         even one slab page fits
+ * @details the debug name is copied bounded and NUL-terminated, the counters and
+ *          the free list are reset, then the pool is split: with
+ *          CONFIG_OPEN_SLAB the slab zone is carved once from the pool head and
+ *          never returned, and the remainder is registered as the first segment
+ *          and pushed as a single free block
+ */
 mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_config_t* config)
 {
     mini_os_buffer_freelist_config_t* whole;
@@ -458,8 +475,7 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
     pool->slab_page_count = 0;
 #endif
 
-    /* Slab zone: carved once from the pool head at init, never returned;
-     * the remainder goes to the free list */
+    /* slab zone first, then the remainder as one free block */
     {
         mini_os_uint8_t* free_base = pool->pool_base;
         mini_os_size_t free_len = config->static_len;
@@ -485,6 +501,14 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
     return MINI_OS_OK;
 }
 
+/**
+ * @brief De-initialize a memory pool (clears the descriptor, the memory goes back
+ *        to the caller)
+ * @param[in] pool pool descriptor
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when pool is MINI_OS_NULL
+ * @note every outstanding pointer of this pool becomes invalid: the free list and
+ *       the segment table are dropped without walking the allocated blocks
+ */
 mini_os_err_t mini_os_memory_deinit(mini_os_memory_t* pool)
 {
 #ifdef CONFIG_OPEN_SLAB
@@ -532,6 +556,19 @@ static void mini_os_memory_count_alloc(struct mini_os_memory* pool)
     }
 }
 
+/**
+ * @brief Allocate a block of memory from the pool (malloc semantics)
+ * @param[in] pool pool descriptor
+ * @param[in] size requested bytes (rounded up to MINI_OS_MEMORY_ALIGN_SIZE)
+ * @return data pointer (8-byte aligned) on success; MINI_OS_NULL on invalid
+ *         arguments or when no block fits
+ * @details the whole allocation runs with interrupts masked (the ISR path uses
+ *          the same code), and the used/peak counters are updated only when a
+ *          block was really handed out
+ * @note with CONFIG_OPEN_SLAB a small request goes to the matching size class
+ *       first and falls back to the free list when that class is exhausted or
+ *       the size is over the max class
+ */
 void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size)
 {
     void* ptr = MINI_OS_NULL;
@@ -543,8 +580,7 @@ void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size)
     }
     lock_state = mini_os_irq_save();
 #ifdef CONFIG_OPEN_SLAB
-    /* Small allocations go to the matching size class first; fall back to the
-     * free list below when the class is exhausted or the size is over the max */
+    /* slab class first, free list below as the fallback */
     if (size <= MINI_OS_SLAB_MAX_BYTES)
     {
         ptr = mini_os_memory_slab_alloc(pool, size);
@@ -567,6 +603,21 @@ void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size)
     return ptr;
 }
 
+/**
+ * @brief Return a block to the pool (free semantics, adjacent free blocks are
+ *        coalesced)
+ * @param[in] pool pool descriptor
+ * @param[in] ptr pointer returned by mini_os_memory_alloc() for this pool
+ * @return MINI_OS_OK when the block was released; MINI_OS_ERR_INVAL when
+ *         pool/ptr is MINI_OS_NULL or the pointer is invalid / not owned by this
+ *         pool
+ * @details with CONFIG_OPEN_SLAB the pointer is offered to the slab zone first:
+ *          a hit (1) frees it, -1 means it is inside the zone but misaligned and
+ *          is rejected, 0 means it belongs to the free list, which is only tried
+ *          when the pointer lies inside a registered segment
+ * @note the used counter is only decremented when something was really freed, so
+ *       a rejected free cannot drive it below zero
+ */
 mini_os_err_t mini_os_memory_free(mini_os_memory_t* pool, void* ptr)
 {
     mini_os_irq_t lock_state;
@@ -604,6 +655,17 @@ mini_os_err_t mini_os_memory_free(mini_os_memory_t* pool, void* ptr)
     return (freed == MINI_OS_TRUE) ? MINI_OS_OK : MINI_OS_ERR_INVAL;
 }
 
+/**
+ * @brief Append a memory segment to the pool (runtime expansion)
+ * @param[in] pool pool descriptor
+ * @param[in] mem segment base (must not overlap an existing segment)
+ * @param[in] len segment bytes
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on invalid arguments or a
+ *         segment too small to hold a header plus one block;
+ *         MINI_OS_ERR_NOSPC when the segment table is full
+ * @note the segment is registered, pushed as one free block and coalesced with
+ *       adjacent free blocks; existing blocks are never moved
+ */
 mini_os_err_t mini_os_memory_expand(mini_os_memory_t* pool, void* mem, mini_os_size_t len)
 {
     mini_os_buffer_freelist_config_t* seg;
@@ -628,13 +690,28 @@ mini_os_err_t mini_os_memory_expand(mini_os_memory_t* pool, void* mem, mini_os_s
     return MINI_OS_OK;
 }
 
-/* ISR-safe variants: the critical section masks interrupts, the native heap
- * is never touched; the path is identical to the thread context */
+/**
+ * @brief Allocate a block from ISR context (equivalent to mini_os_memory_alloc)
+ * @param[in] pool pool descriptor
+ * @param[in] size requested bytes (rounded up to MINI_OS_MEMORY_ALIGN_SIZE)
+ * @return data pointer on success; MINI_OS_NULL on invalid arguments or out of
+ *         memory
+ * @note the critical section masks interrupts and the native heap is never
+ *       touched, so the ISR path is identical to the thread path
+ */
 void* mini_os_memory_alloc_isr(mini_os_memory_t* pool, mini_os_size_t size)
 {
     return mini_os_memory_alloc(pool, size);
 }
 
+/**
+ * @brief Return a block to the pool from ISR context (equivalent to
+ *        mini_os_memory_free)
+ * @param[in] pool pool descriptor
+ * @param[in] ptr pointer returned by mini_os_memory_alloc() for this pool
+ * @return MINI_OS_OK when the block was released; MINI_OS_ERR_INVAL on invalid
+ *         arguments or an invalid pointer
+ */
 mini_os_err_t mini_os_memory_free_isr(mini_os_memory_t* pool, void* ptr)
 {
     return mini_os_memory_free(pool, ptr);
@@ -644,6 +721,11 @@ mini_os_err_t mini_os_memory_free_isr(mini_os_memory_t* pool, void* ptr)
 /* Statistics / diagnostics                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * @brief Query the total pool size (sum of all segments)
+ * @param[in] pool pool descriptor; MINI_OS_NULL returns 0
+ * @return total bytes registered on this pool
+ */
 mini_os_size_t mini_os_memory_size(const mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
@@ -653,6 +735,13 @@ mini_os_size_t mini_os_memory_size(const mini_os_memory_t* pool)
     return pool->total_size;
 }
 
+/**
+ * @brief Query the remaining free bytes of the pool (O(1))
+ * @param[in] pool pool descriptor; MINI_OS_NULL or an uninitialized pool returns 0
+ * @return free bytes currently on the free list
+ * @note free_size is maintained by the alloc/free paths, so no free-list walk is
+ *       needed; with CONFIG_OPEN_SLAB the pages carved for slab are not counted
+ */
 mini_os_size_t mini_os_memory_free_space(const mini_os_memory_t* pool)
 {
     mini_os_size_t total;
@@ -669,6 +758,11 @@ mini_os_size_t mini_os_memory_free_space(const mini_os_memory_t* pool)
     return total;
 }
 
+/**
+ * @brief Query the current number of allocated blocks
+ * @param[in] pool pool descriptor; MINI_OS_NULL returns 0
+ * @return blocks currently handed out by this pool
+ */
 mini_os_uint32_t mini_os_memory_used(const mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
@@ -678,6 +772,11 @@ mini_os_uint32_t mini_os_memory_used(const mini_os_memory_t* pool)
     return MINI_OS_ATOMIC_LOAD(&pool->used_count, MINI_OS_SEQ_CST);
 }
 
+/**
+ * @brief Query the historical peak number of allocated blocks
+ * @param[in] pool pool descriptor; MINI_OS_NULL returns 0
+ * @return highest value the allocated block counter ever reached
+ */
 mini_os_uint32_t mini_os_memory_peak(const mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
@@ -687,6 +786,11 @@ mini_os_uint32_t mini_os_memory_peak(const mini_os_memory_t* pool)
     return MINI_OS_ATOMIC_LOAD(&pool->peak, MINI_OS_SEQ_CST);
 }
 
+/**
+ * @brief Reset the peak counter to the current number of allocated blocks
+ * @param[in] pool pool descriptor
+ * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when pool is MINI_OS_NULL
+ */
 mini_os_err_t mini_os_memory_reset_peak(mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
@@ -823,6 +927,18 @@ MINI_OS_CONSTRUCTOR(MINI_OS_MEMORY_PRESTRUCTOR) static void mini_os_heap_init_ct
     }
 }
 
+/**
+ * @brief Allocate memory from the global heap
+ * @param[in] size requested bytes (0 returns MINI_OS_NULL)
+ * @return data pointer (8-byte aligned) on success; MINI_OS_NULL when the heap
+ *         is not ready or out of memory
+ * @details with CONFIG_MINI_OS_SLAB_STATIC a small request goes to the
+ *          independent static slab zone first (ready before the heap and not
+ *          carved out of it); when the matching class is exhausted the request
+ *          falls back to the heap
+ * @note with CONFIG_OPEN_SLAB the small classes live in pages carved from the
+ *       heap itself, so they are served inside mini_os_memory_alloc()
+ */
 void* mini_os_malloc(mini_os_size_t size)
 {
 #ifdef CONFIG_MINI_OS_SLAB_STATIC
@@ -851,6 +967,17 @@ void* mini_os_malloc(mini_os_size_t size)
     return mini_os_memory_alloc(&s_mini_os_heap_pool, size);
 }
 
+/**
+ * @brief Return memory to the global heap (adjacent free blocks are coalesced)
+ * @param[in] ptr pointer returned by mini_os_malloc()
+ * @return MINI_OS_OK on success; MINI_OS_ERR_DEFER while the heap is not ready
+ *         (retry later); MINI_OS_ERR_INVAL on an invalid or misaligned pointer
+ * @details with CONFIG_MINI_OS_SLAB_STATIC the pointer is offered to the static
+ *          zone first: 1 means it belonged there, -1 means it is inside the zone
+ *          but not slot aligned, and only otherwise does the heap see it
+ * @note freeing a NULL pointer of a static-slab build is rejected early, before
+ *       the heap readiness check
+ */
 mini_os_err_t mini_os_free(void* ptr)
 {
 #ifdef CONFIG_MINI_OS_SLAB_STATIC
@@ -877,6 +1004,15 @@ mini_os_err_t mini_os_free(void* ptr)
     return mini_os_memory_free(&s_mini_os_heap_pool, ptr);
 }
 
+/**
+ * @brief Allocate zeroed memory from the global heap (count * size bytes)
+ * @param[in] count number of elements (0 returns MINI_OS_NULL)
+ * @param[in] size bytes per element (0 returns MINI_OS_NULL)
+ * @return zeroed data pointer (8-byte aligned) on success; MINI_OS_NULL when the
+ *         heap is not ready, out of memory, or on multiplication overflow
+ * @note the multiplication is guarded before the allocation, so a wrapping
+ *       count * size can never request a short buffer
+ */
 void* mini_os_calloc(mini_os_size_t count, mini_os_size_t size)
 {
     mini_os_size_t total;
@@ -900,6 +1036,10 @@ void* mini_os_calloc(mini_os_size_t count, mini_os_size_t size)
     return ptr;
 }
 
+/**
+ * @brief Query the remaining free bytes of the global heap (O(1))
+ * @return free bytes; 0 when the heap is not ready
+ */
 mini_os_size_t mini_os_heap_free_space(void)
 {
     if (s_mini_os_heap_ready != MINI_OS_TRUE)
