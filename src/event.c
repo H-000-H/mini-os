@@ -12,6 +12,8 @@
 #include "schedule.h"
 #include "thread.h"
 
+#if MINI_OS_EVENT
+
 mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini_os_event_type_t type)
 {
     mini_os_event_group_t* event_group = (mini_os_event_group_t*)mini_os_malloc(sizeof(mini_os_event_group_t));
@@ -163,8 +165,8 @@ mini_os_err_t mini_os_event_set_group_isr(mini_os_event_group_t* event_group, mi
         return MINI_OS_ERR_INVAL;
     }
 
-    /* Wake only; the ISR caller decides via
-     * mini_os_queue_isr_is_heigher_priority() whether to trigger PendSV. */
+    /* Wake only; the ISR caller ends with mini_os_schedule_yield_isr(), which
+     * sets PendSV pending only when a more urgent thread became ready. */
     (void)mini_os_event_apply(event_group, event);
     return MINI_OS_OK;
 }
@@ -221,10 +223,10 @@ mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uin
     }
     if (timeout_tick > 0 && timeout_tick != (mini_os_tick_t)-1)
     {
-        mini_os_uint32_t now = 0;
+        mini_os_tick_t now = 0;
 
         (void)mini_os_get_tick(&now);
-        deadline = now + (mini_os_uint32_t)timeout_tick; /* strict total timeout */
+        deadline = (mini_os_uint32_t)now + (mini_os_uint32_t)timeout_tick; /* strict total timeout */
     }
 
     for (;;)
@@ -279,3 +281,5 @@ mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uin
         }
     }
 }
+
+#endif /* MINI_OS_EVENT */

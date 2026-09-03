@@ -134,6 +134,26 @@ mini_os_err_t mini_os_schedule_yield(void)
     return MINI_OS_OK;
 }
 
+mini_os_err_t mini_os_schedule_yield_isr(void)
+{
+    mini_os_irq_t irq_level = mini_os_irq_save();
+
+    /* Only a more urgent priority (numerically lower) is worth a PendSV: an
+     * equal or lower priority wake just joins the ready list and is picked up
+     * by the next regular switch, so the interrupted thread resumes directly.
+     * mini_os_yield_trigger() ends with dsb, which orders the ICSR write before
+     * the hardware exception return that tail-chains PendSV. */
+    if (mini_os_current_thread != MINI_OS_NULL)
+    {
+        if (mini_os_get_highest_priority() < mini_os_current_thread->priority)
+        {
+            mini_os_yield_trigger();
+        }
+    }
+    mini_os_irq_restore(irq_level);
+    return MINI_OS_OK;
+}
+
 mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t *thread)
 {
     if (!thread || thread->state == MINI_OS_THREAD_STATE_READY ||
@@ -292,7 +312,9 @@ mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t
     (void)mini_os_remove_thread_from_ready_running_list(current);
     current->state = MINI_OS_THREAD_STATE_BLOCKED;
     current->wait_list = wait_list;
+#if MINI_OS_EVENT
     current->wait_mask = wait_mask;
+#endif
     current->wait_done = MINI_OS_FALSE;
     mini_os_list_tail(&current->wait_node, wait_list);
     if (timeout_tick != (mini_os_tick_t)-1)
@@ -369,7 +391,7 @@ mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_
 }
 #endif
 
-mini_os_err_t mini_os_get_tick(mini_os_uint32_t *tick)
+mini_os_err_t mini_os_get_tick(mini_os_tick_t *tick)
 {
     *tick = g_global_tick;
     return MINI_OS_OK;

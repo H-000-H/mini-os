@@ -61,8 +61,8 @@ typedef signed long                         mini_os_user_data_t;          /**<mi
 #define MINI_OS_UINT8_MAX                   (0XFF)                       /**<uint8_t max*/
 #define MINI_OS_UINT16_MAX                  (0XFFFF)                     /**<uint16_t max*/
 #define MINI_OS_UINT32_MAX                  (0xFFFFFFFF)                 /**<uint32_t max*/
-#define MINI_OS_DELAY_FOREVER               (mini_os_uint32_t -1)        /**<delay forever */
-#define MINI_OS_WAIT_FOREVER                (mini_os_uint32_t -1)        /**<wait forever */
+#define MINI_OS_DELAY_FOREVER               ((mini_os_tick_t)-1)        /**<delay forever */
+#define MINI_OS_WAIT_FOREVER                ((mini_os_tick_t)-1)        /**<wait forever */
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                  mini-os-gcc-features-macro                                             */
 /*---------------------------------------------------------------------------------------------------------*/
@@ -172,40 +172,15 @@ MINI_OS_STATIC_INLINE mini_os_uint32_t mini_os_bswap_fallback(mini_os_uint32_t x
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                  mini-os-interrupt-functions                                            */
 /*---------------------------------------------------------------------------------------------------------*/
-/**
- * @brief Disable interrupts globally (PRIMASK)
- */
-MINI_OS_STATIC_INLINE void mini_os_irq_disable(void)
-{
-    __asm volatile ("cpsid i" ::: "memory");
-}
+/* Implemented in port/port.S (assembly export, not static inline here).
+ * PRIMASK path by default; BASEPRI path when MINI_OS_IRQ_MAX_SYSCALL_PRIORITY
+ * is defined (M3/M4/M7 only, see mini_config.h for the policy and checks). */
+void mini_os_irq_disable(void);                             /**< mask interrupts (PRIMASK / BASEPRI threshold) */
+void mini_os_irq_enable(void);                              /**< unmask interrupts (PRIMASK / BASEPRI = 0) */
+mini_os_irq_t mini_os_irq_save(void);                       /**< enter nestable critical section, returns saved state */
+void mini_os_irq_restore(mini_os_irq_t irq_level);          /**< exit nestable critical section, restores saved state */
 
-/**
- * @brief Enable interrupts
- */
-MINI_OS_STATIC_INLINE void mini_os_irq_enable(void)
-{
-    __asm volatile ("cpsie i" ::: "memory");
-}
-
-/**
- * @brief Save interrupt state
- */
-MINI_OS_STATIC_INLINE mini_os_irq_t mini_os_irq_save(void)
-{
-    mini_os_irq_t irq_level;
-    __asm volatile ("mrs %0, primask\n" "cpsid i\n" : "=r" (irq_level) :: "memory");
-    return irq_level;
-}
-
-/**
- * @brief Restore interrupt state
- */
-MINI_OS_STATIC_INLINE void mini_os_irq_restore(mini_os_irq_t irq_level)
-{
-    __asm volatile ("msr primask, %0\n" :: "r" (irq_level) : "memory");
-}
-
+#include "critical.h"
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                  mini-os-atomic                                                         */
 /*---------------------------------------------------------------------------------------------------------*/

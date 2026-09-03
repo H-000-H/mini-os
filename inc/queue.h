@@ -13,8 +13,6 @@ extern "C" {
 #include "redef.h"
 #include "mini_config.h"
 
-#define MINI_OS_QUEUE_WAIT_FOREVER ((mini_os_tick_t)-1) /**< timeout value: block forever */
-
 typedef struct mini_os_queue mini_os_queue_t;
 
 /**
@@ -25,7 +23,7 @@ typedef struct mini_os_queue mini_os_queue_t;
  */
 struct mini_os_queue
 {
-    char name[QUEUE_NAME_LEN];    /**< queue name */
+    char name[MINI_OS_QUEUE_NAME_LEN];    /**< queue name */
     mini_os_uint16_t msg_size;    /**< message payload size in bytes */
     mini_os_uint8_t max_depth;    /**< queue max depth (the maximum number of messages) */
     mini_os_uint8_t depth;        /**< queue depth (the number of messages in the queue) */
@@ -110,8 +108,8 @@ mini_os_err_t mini_os_queue_receive(mini_os_queue_t* queue, void* msg, mini_os_t
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on invalid arguments;
  *         MINI_OS_ERR_AGAIN when the queue is full
  * @note behaves exactly like mini_os_queue_send(queue, msg, 0): never blocks;
- *       afterwards call mini_os_queue_isr_is_heigher_priority() and trigger
- *       mini_os_yield_trigger() when it reports MINI_OS_TRUE
+ *       does NOT trigger the context switch itself, so call
+ *       mini_os_schedule_yield_isr() once at the end of the ISR
  */
 mini_os_err_t mini_os_queue_send_isr(mini_os_queue_t* queue, const void* msg);
 
@@ -122,21 +120,10 @@ mini_os_err_t mini_os_queue_send_isr(mini_os_queue_t* queue, const void* msg);
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on invalid arguments;
  *         MINI_OS_ERR_AGAIN when the queue is empty
  * @note behaves exactly like mini_os_queue_receive(queue, msg, 0): never blocks;
- *       afterwards call mini_os_queue_isr_is_heigher_priority() and trigger
- *       mini_os_yield_trigger() when it reports MINI_OS_TRUE
+ *       does NOT trigger the context switch itself, so call
+ *       mini_os_schedule_yield_isr() once at the end of the ISR
  */
 mini_os_err_t mini_os_queue_receive_isr(mini_os_queue_t* queue, void* msg);
-
-/**
- * @brief Check whether a higher-priority thread than the interrupted one is ready
- * @param[out] is_heigher_priority MINI_OS_TRUE when a higher-priority thread is
- *             ready (e.g. woken by mini_os_queue_send_isr()/mini_os_queue_receive_isr())
- * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on MINI_OS_NULL
- * @note call at the end of an ISR that used the queue ISR API; when MINI_OS_TRUE
- *       is reported, trigger mini_os_yield_trigger() so PendSV performs the
- *       context switch at ISR exit
- */
-mini_os_err_t mini_os_queue_isr_is_heigher_priority(mini_os_bool_t* is_heigher_priority);
 
 /**
  * @brief Check if a queue is empty

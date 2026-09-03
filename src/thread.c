@@ -5,6 +5,7 @@
  * @brief Thread management functions
  */
 #include "thread.h"
+#include "semaphore.h"
 #include "err.h"
 #include "list.h"
 #include "mini_config.h"
@@ -12,7 +13,6 @@
 #include "redef.h"
 #include "memory.h"
 #include "schedule.h"
-#define IDLE_THREAD_NAME "idle_thread"
 #if MINI_OS_FIND_BY_NAME
 static mini_os_list_t g_threads_list;
 MINI_OS_CONSTRUCTOR(MINI_OS_FIND_BY_NAME_CONSTRUCTOR) void mini_os_global_list_init(void)
@@ -45,6 +45,9 @@ static void *mini_os_thread_stack_init(
     *(--sp) = 0U;                           /**< r6 */
     *(--sp) = 0U;                           /**< r5 */
     *(--sp) = 0U;                           /**< r4 */
+#if MINI_OS_ARCH_HAS_FPU && MINI_OS_USE_FPU
+    *(--sp) = 0U;                           /**< FPU flag: 0 = no s16-s31 saved yet */
+#endif
     return (void*)sp;
 }
 
@@ -78,7 +81,7 @@ static mini_os_err_t mini_os_thread_init(
     else
     {
         mini_os_size_t i = 0u;
-        while (i < (mini_os_size_t)(THREADS_NAME_LEN - 1) && name[i] != '\0')
+        while (i < (mini_os_size_t)(MINI_OS_THREADS_NAME_LEN - 1) && name[i] != '\0')
         {
             thread->thread_name[i] = name[i];
             i++;
@@ -112,7 +115,9 @@ static mini_os_err_t mini_os_thread_init(
     mini_os_list_init(&thread->wait_node);
     thread->wait_list = MINI_OS_NULL;
     thread->wait_done = MINI_OS_TRUE;
+#if MINI_OS_EVENT
     thread->wait_mask = 0u;
+#endif
 
     thread->thread_cleanup = MINI_OS_NULL;
     thread->user_data = 0;
@@ -607,7 +612,7 @@ mini_os_err_t mini_os_thread_set_name(                              mini_os_thre
     else
     {
         uint8_t len = 0;
-        for (uint8_t i = 0; i < (mini_os_size_t)(THREADS_NAME_LEN - 1) && name[i] != '\0';i++)
+        for (uint8_t i = 0; i < (mini_os_size_t)(MINI_OS_THREADS_NAME_LEN - 1) && name[i] != '\0';i++)
         {
             thread->thread_name[i] = name[i];
             len++;
@@ -622,7 +627,7 @@ mini_os_err_t mini_os_thread_get_name(                              mini_os_thre
     if (!thread || !name || !name_len)
         return MINI_OS_ERR_INVAL;
     uint8_t len = 0;
-    for (uint8_t i = 0; i < (mini_os_size_t)(THREADS_NAME_LEN - 1) && thread->thread_name[i] != '\0'; i++)
+    for (uint8_t i = 0; i < (mini_os_size_t)(MINI_OS_THREADS_NAME_LEN - 1) && thread->thread_name[i] != '\0'; i++)
     {
         name[i] = thread->thread_name[i];
         len++;
@@ -733,6 +738,9 @@ MINI_OS_WEAK mini_os_err_t mini_os_thread_idle_hook(idle_hook_t hook, void* para
     while (1)
     {
         mini_os_thread_defunct_execute(); /* reclaim terminated threads */
+#if MINI_OS_STACK_OVERFLOW_CHECK
+        mini_os_stack_overflow_check();   /* halt when the system stack ran over */
+#endif
         if (hook != MINI_OS_NULL)
         {
             hook(param);
@@ -749,5 +757,5 @@ MINI_OS_WEAK void mini_os_thread_idle(void*param)
 
 MINI_OS_WEAK void mini_os_thread_idle_create(void)
 {
-    mini_os_thread_create(IDLE_THREAD_NAME, MINI_OS_DEFAULT_IDLE_STACK_SIZE, MINI_OS_PRIORITY_NUM-1, mini_os_thread_idle, MINI_OS_NULL);
+    mini_os_thread_create(MINI_OS_IDLE_THREAD_NAME, MINI_OS_DEFAULT_IDLE_STACK_SIZE, MINI_OS_PRIORITY_NUM-1, mini_os_thread_idle, MINI_OS_NULL);
 }

@@ -17,7 +17,7 @@ typedef struct mini_os_timer mini_os_timer_t;
 typedef struct mini_os_timer
 {
     mini_os_list_t      list_node;          /**< list node for timer */
-    char                timer_name[THREADS_NAME_LEN]; /**< timer name */
+    char                timer_name[MINI_OS_THREADS_NAME_LEN]; /**< timer name */
     void                (*cb)(void *arg);   /**< callback function */
     void                *arg;               /**< callback function argument */
     mini_os_tick_t      init_tick;          /**< user set init tick */

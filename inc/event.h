@@ -13,6 +13,9 @@ extern "C" {
 #include "redef.h"
 #include "memory.h"
 #include "thread.h"
+#include "mini_config.h"
+
+#if MINI_OS_EVENT
 
 typedef enum mini_os_event_type
 {
@@ -79,10 +82,9 @@ mini_os_err_t mini_os_event_set_group(mini_os_event_group_t* event_group, mini_o
  * @param[in] event Event flags
  * @return mini_os_err_t Error code
  * @note WHOLE type replaces all flags, OR type sets the given bits; wakes
- *       every satisfied waiter but does NOT trigger the context switch;
- *       afterwards call mini_os_queue_isr_is_heigher_priority() and trigger
- *       mini_os_yield_trigger() when it reports MINI_OS_TRUE (same pattern as
- *       the queue ISR API)
+ *       every satisfied waiter but does NOT trigger the context switch, so
+ *       call mini_os_schedule_yield_isr() once at the end of the ISR (same
+ *       pattern as the queue ISR API)
  */
 mini_os_err_t mini_os_event_set_group_isr(mini_os_event_group_t* event_group, mini_os_uint32_t event);
 
@@ -129,6 +131,8 @@ mini_os_err_t mini_os_event_group_set_auto_clear(mini_os_event_group_t* event_gr
  *       consumed by the waiter
  */
 mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uint32_t mask, mini_os_tick_t timeout_tick, mini_os_uint32_t* out_event);
+
+#endif /* MINI_OS_EVENT */
 
 #if defined(__cplusplus)
 }

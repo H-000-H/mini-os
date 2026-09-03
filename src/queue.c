@@ -19,7 +19,7 @@ static void mini_os_queue_name_set(char* dst, const char* name)
 
     if (name != MINI_OS_NULL)
     {
-        while (name[i] != '\0' && i < QUEUE_NAME_LEN - 1)
+        while (name[i] != '\0' && i < MINI_OS_QUEUE_NAME_LEN - 1)
         {
             dst[i] = name[i];
             i++;
@@ -165,12 +165,12 @@ mini_os_err_t mini_os_queue_send(mini_os_queue_t* queue, const void* msg, mini_o
     {
         return MINI_OS_ERR_INVAL;
     }
-    if (timeout_tick > 0 && timeout_tick != MINI_OS_QUEUE_WAIT_FOREVER)
+    if (timeout_tick > 0 && timeout_tick != MINI_OS_WAIT_FOREVER)
     {
-        mini_os_uint32_t now = 0;
+        mini_os_tick_t now = 0;
 
         (void)mini_os_get_tick(&now);
-        deadline = now + (mini_os_uint32_t)timeout_tick; /* strict total timeout */
+        deadline = (mini_os_uint32_t)now + (mini_os_uint32_t)timeout_tick; /* strict total timeout */
     }
 
     for (;;)
@@ -209,7 +209,7 @@ mini_os_err_t mini_os_queue_send(mini_os_queue_t* queue, const void* msg, mini_o
          * the time wheel (list_node), inside the critical section so a space
          * event cannot be missed; park restores irq and yields. A retry parks
          * with the remaining time only, keeping the total timeout strict. */
-        if (timeout_tick != MINI_OS_QUEUE_WAIT_FOREVER)
+        if (timeout_tick != MINI_OS_WAIT_FOREVER )
         {
             mini_os_uint32_t remain = mini_os_tick_until(deadline);
 
@@ -239,12 +239,12 @@ mini_os_err_t mini_os_queue_receive(mini_os_queue_t* queue, void* msg, mini_os_t
     {
         return MINI_OS_ERR_INVAL;
     }
-    if (timeout_tick > 0 && timeout_tick != MINI_OS_QUEUE_WAIT_FOREVER)
+    if (timeout_tick > 0 && timeout_tick != MINI_OS_WAIT_FOREVER)
     {
-        mini_os_uint32_t now = 0;
+        mini_os_tick_t now = 0;
 
         (void)mini_os_get_tick(&now);
-        deadline = now + (mini_os_uint32_t)timeout_tick; /* strict total timeout */
+        deadline = (mini_os_uint32_t)now + (mini_os_uint32_t)timeout_tick; /* strict total timeout */
     }
 
     for (;;)
@@ -283,7 +283,7 @@ mini_os_err_t mini_os_queue_receive(mini_os_queue_t* queue, void* msg, mini_os_t
          * the time wheel (list_node), inside the critical section so a message
          * event cannot be missed; park restores irq and yields. A retry parks
          * with the remaining time only, keeping the total timeout strict. */
-        if (timeout_tick != MINI_OS_QUEUE_WAIT_FOREVER)
+        if (timeout_tick != MINI_OS_WAIT_FOREVER)
         {
             mini_os_uint32_t remain = mini_os_tick_until(deadline);
 
@@ -326,8 +326,6 @@ mini_os_err_t mini_os_queue_send_isr(mini_os_queue_t* queue, const void* msg)
         queue->write_idx = 0;
     }
     queue->depth++;
-    /* Wake only; the ISR caller decides via
-     * mini_os_queue_isr_is_heigher_priority() whether to trigger PendSV. */
     (void)mini_os_queue_wake_one(&queue->receive_list);
     mini_os_irq_restore(irq);
     return MINI_OS_OK;
@@ -356,32 +354,6 @@ mini_os_err_t mini_os_queue_receive_isr(mini_os_queue_t* queue, void* msg)
     }
     queue->depth--;
     (void)mini_os_queue_wake_one(&queue->send_list);
-    mini_os_irq_restore(irq);
-    return MINI_OS_OK;
-}
-
-mini_os_err_t mini_os_queue_isr_is_heigher_priority(mini_os_bool_t* is_heigher_priority)
-{
-    mini_os_thread_t* current;
-    mini_os_uint8_t highest;
-    mini_os_irq_t irq;
-
-    if (is_heigher_priority == MINI_OS_NULL)
-    {
-        return MINI_OS_ERR_INVAL;
-    }
-    *is_heigher_priority = MINI_OS_FALSE;
-
-    irq = mini_os_irq_save();
-    current = mini_os_thread_current();
-    if (current != MINI_OS_NULL)
-    {
-        highest = mini_os_get_highest_priority();
-        if (highest < current->priority)
-        {
-            *is_heigher_priority = MINI_OS_TRUE;
-        }
-    }
     mini_os_irq_restore(irq);
     return MINI_OS_OK;
 }

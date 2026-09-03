@@ -64,6 +64,22 @@ mini_os_err_t mini_os_schedule_start(void);
  */
 mini_os_err_t mini_os_schedule_yield(void);
 /**
+ * @brief Yield from ISR context: switch to a woken thread only if it outranks
+ *        the interrupted one
+ * @return MINI_OS_OK always
+ * @note call once at the end of an ISR that woke threads through an *_isr API
+ *       (mini_os_queue_send_isr()/mini_os_event_set_group_isr()/...). It checks
+ *       the ready bitmap itself and sets PendSV pending only when a numerically
+ *       lower (more urgent) priority became ready, so the switch happens on ISR
+ *       exit and an equal-or-lower priority wake costs nothing -- the generic
+ *       form of FreeRTOS xHigherPriorityTaskWoken + portYIELD_FROM_ISR().
+ * @note never blocks and never switches inside the ISR; the interrupted thread
+ *       keeps running until the hardware exception return. With the BASEPRI
+ *       critical-section policy the ISR must run at a priority number >=
+ *       MINI_OS_IRQ_MAX_SYSCALL_PRIORITY, as with every other kernel API.
+ */
+mini_os_err_t mini_os_schedule_yield_isr(void);
+/**
  * @brief Delay the current thread for 'ticks' ticks
  * @param[in] ticks number of ticks to delay (0 returns immediately)
  * @note kernel API, used by mini_os_thread_delay_tick()
@@ -142,7 +158,7 @@ MINI_OS_STATIC_INLINE mini_os_uint8_t mini_os_get_highest_priority(void)
 mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_t *overflow);
 #endif
 
-mini_os_err_t mini_os_get_tick(mini_os_uint32_t *tick);
+mini_os_err_t mini_os_get_tick(mini_os_tick_t *tick);
 
 /**
  * @brief Remaining ticks until a deadline (tick-wrap safe)

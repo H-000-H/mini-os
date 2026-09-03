@@ -12,10 +12,11 @@
 extern "C" {
 #endif
 #include "memory.h"
-#include "semaphore.h"
 #include <redef.h>
 #include <list.h>
 #include <mini_config.h>
+
+struct mini_os_semaphore;   
 
 typedef struct mini_os_thread mini_os_thread_t;
 /**
@@ -39,12 +40,11 @@ struct mini_os_thread
 {
 
     void                        *sp;                                    /**< Stack pointer for the thread must in first position in tcp */
-    char                        thread_name[THREADS_NAME_LEN];          /**< Name of the thread */
+    char                        thread_name[MINI_OS_THREADS_NAME_LEN];          /**< Name of the thread */
     mini_os_list_t              list_node;                              /**< List node for the thread (ready/running list or time wheel) */
     mini_os_list_t              wait_node;                              /**< List node for sync-object wait lists (queue send/receive...) */
     mini_os_list_t              *wait_list;                             /**< Wait list wait_node is parked on (MINI_OS_NULL = no sync wait) */
     mini_os_bool_t              wait_done;                              /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
-    mini_os_uint32_t            wait_mask;                              /**< Expected event mask while parked on an event-group wait list */
     void                        (*entry)(void *);                       /**< Entry function for the thread */
     void                        *param;                                 /**< Parameter for the entry function */
     void                        *stack_addr;                            /**< Stack address for the thread */
@@ -57,6 +57,10 @@ struct mini_os_thread
     mini_os_uint8_t             wheel_slot;                             /**< wheel slot while BLOCKED in the wheel; MINI_OS_TICK_WHEEL = not in wheel */
     mini_os_user_data_t         user_data;                              /**< User data for the thread */
     void                        (*thread_cleanup)(void *);              /**< Cleanup function for the thread */
+#if MINI_OS_EVENT
+    mini_os_uint32_t            wait_mask;                              /**< Expected event mask while parked on an event-group wait list */
+#endif
+
 #if MINI_OS_FIND_BY_NAME
     mini_os_list_t              g_list_node;
 #endif
@@ -69,7 +73,7 @@ struct mini_os_thread
     mini_os_bool_t              is_detach;                              /**< enabled detached */
     mini_os_bool_t              is_terminated;                          /**< enabled terminated */
     void                        *exit_retval;                           /**< exit return value */
-    mini_os_semaphore_t         *join_wait_sem;                         /**< join wait semaphore */
+    struct mini_os_semaphore   *join_wait_sem;                           /**< join wait semaphore (incomplete type pointer) */
 #endif
 };
 
