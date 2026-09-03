@@ -1,5 +1,5 @@
 /build/
-build/
+/test/
 config.h
 *.o
 *.obj
