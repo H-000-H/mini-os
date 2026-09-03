@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @brief Event group implementation (32 event flags, OR/WHOLE wait semantics,
  *        blocking wait with wait-list wake-up and time-wheel timeout)
@@ -8,6 +8,7 @@
  *       several threads can wait for different masks on the same group at once
  */
 #include "event.h"
+
 #include "err.h"
 #include "list.h"
 #include "redef.h"
@@ -24,14 +25,12 @@
  * @return event group handle on success; MINI_OS_NULL on out of memory
  * @note auto-clear is enabled by default, so a satisfied wait consumes its bits
  */
-mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini_os_event_type_t type)
+mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id, mini_os_event_type_t type)
 {
     mini_os_event_group_t* event_group = (mini_os_event_group_t*)mini_os_malloc(sizeof(mini_os_event_group_t));
 
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     mini_os_list_init(&event_group->wait_list);
     event_group->event = event_id;
     event_group->event_type = type;
@@ -47,12 +46,10 @@ mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini
  * @param[in] type MINI_OS_EVENT_WHOLE_TYPE or MINI_OS_EVENT_OR_TYPE
  * @return event group handle on success; MINI_OS_NULL when event_group is MINI_OS_NULL
  */
-mini_os_event_group_t* mini_os_event_group_create_static(mini_os_event_group_t* event_group,mini_os_uint32_t event_id,mini_os_event_type_t type)
+mini_os_event_group_t* mini_os_event_group_create_static(mini_os_event_group_t* event_group, mini_os_uint32_t event_id, mini_os_event_type_t type)
 {
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     mini_os_list_init(&event_group->wait_list);
     event_group->event = event_id;
     event_group->event_type = type;
@@ -74,13 +71,9 @@ mini_os_err_t mini_os_event_group_delete(mini_os_event_group_t* event_group)
     mini_os_irq_t irq;
 
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if (!event_group->heap_owned)
-    {
         return MINI_OS_ERR_NOTSUPP;
-    }
 
     irq = mini_os_irq_save();
     if (!mini_os_list_is_empty(&event_group->wait_list))
@@ -105,9 +98,7 @@ mini_os_err_t mini_os_event_group_delete(mini_os_event_group_t* event_group)
 static mini_os_bool_t mini_os_event_satisfied(const mini_os_event_group_t* event_group, mini_os_uint32_t mask)
 {
     if (event_group->event_type == MINI_OS_EVENT_WHOLE_TYPE)
-    {
         return ((event_group->event & mask) == mask) ? MINI_OS_TRUE : MINI_OS_FALSE;
-    }
     return ((event_group->event & mask) != 0u) ? MINI_OS_TRUE : MINI_OS_FALSE;
 }
 
@@ -126,19 +117,17 @@ static mini_os_bool_t mini_os_event_satisfied(const mini_os_event_group_t* event
  */
 static mini_os_bool_t mini_os_event_wake_satisfied(mini_os_event_group_t* event_group)
 {
-    mini_os_list_t* node;
-    mini_os_list_t* next;
+    mini_os_list_t*   node;
+    mini_os_list_t*   next;
     mini_os_thread_t* thread;
-    mini_os_bool_t woken = MINI_OS_FALSE;
+    mini_os_bool_t    woken = MINI_OS_FALSE;
 
     for (node = event_group->wait_list.next; node != &event_group->wait_list; node = next)
     {
         next = node->next;
         thread = mini_os_container_of(node, mini_os_thread_t, wait_node);
         if (!mini_os_event_satisfied(event_group, thread->wait_mask))
-        {
             continue;
-        }
         mini_os_list_remove(&thread->wait_node);
         thread->wait_list = MINI_OS_NULL;
         thread->wait_done = MINI_OS_TRUE;
@@ -163,18 +152,14 @@ static mini_os_bool_t mini_os_event_wake_satisfied(mini_os_event_group_t* event_
  */
 static mini_os_bool_t mini_os_event_apply(mini_os_event_group_t* event_group, mini_os_uint32_t event)
 {
-    mini_os_irq_t irq;
+    mini_os_irq_t  irq;
     mini_os_bool_t woken;
 
     irq = mini_os_irq_save();
     if (event_group->event_type == MINI_OS_EVENT_WHOLE_TYPE)
-    {
         event_group->event = event; /* WHOLE: the flags are replaced */
-    }
     else
-    {
         event_group->event |= event;
-    }
     woken = mini_os_event_wake_satisfied(event_group);
     mini_os_irq_restore(irq);
     return woken;
@@ -193,15 +178,11 @@ mini_os_err_t mini_os_event_set_group(mini_os_event_group_t* event_group, mini_o
     mini_os_bool_t woken;
 
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     woken = mini_os_event_apply(event_group, event);
     if (woken)
-    {
         (void)mini_os_schedule_yield();
-    }
     return MINI_OS_OK;
 }
 
@@ -217,9 +198,7 @@ mini_os_err_t mini_os_event_set_group(mini_os_event_group_t* event_group, mini_o
 mini_os_err_t mini_os_event_set_group_isr(mini_os_event_group_t* event_group, mini_os_uint32_t event)
 {
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     /* Wake only; the ISR caller ends with mini_os_schedule_yield_isr(), which
      * sets PendSV pending only when a more urgent thread became ready. */
@@ -233,14 +212,12 @@ mini_os_err_t mini_os_event_set_group_isr(mini_os_event_group_t* event_group, mi
  * @param[out] event receives the current flags
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on a NULL argument
  */
-mini_os_err_t mini_os_event_get_group(mini_os_event_group_t *event_group, mini_os_uint32_t *event)
+mini_os_err_t mini_os_event_get_group(mini_os_event_group_t* event_group, mini_os_uint32_t* event)
 {
     mini_os_irq_t irq;
 
     if (event_group == MINI_OS_NULL || event == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     *event = event_group->event;
     mini_os_irq_restore(irq);
@@ -258,9 +235,7 @@ mini_os_err_t mini_os_event_clear_group(mini_os_event_group_t* event_group, mini
     mini_os_irq_t irq;
 
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     event_group->event &= ~event;
     mini_os_irq_restore(irq);
@@ -280,9 +255,7 @@ mini_os_err_t mini_os_event_group_set_auto_clear(mini_os_event_group_t* event_gr
     mini_os_irq_t irq;
 
     if (event_group == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     event_group->is_auto_clear = is_auto_clear;
     mini_os_irq_restore(irq);
@@ -315,9 +288,7 @@ mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uin
     mini_os_uint32_t deadline = 0;
 
     if (event_group == MINI_OS_NULL || mask == 0u)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if (timeout_tick > 0 && timeout_tick != (mini_os_tick_t)-1)
     {
         mini_os_tick_t now = 0;
@@ -333,13 +304,9 @@ mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uin
         if (mini_os_event_satisfied(event_group, mask))
         {
             if (out_event != MINI_OS_NULL)
-            {
                 *out_event = event_group->event & mask; /* report before auto-clear consumes */
-            }
             if (event_group->is_auto_clear)
-            {
                 event_group->event &= ~mask; /* consume the retrieved bits */
-            }
             mini_os_irq_restore(irq);
             return MINI_OS_OK;
         }
@@ -368,9 +335,7 @@ mini_os_err_t mini_os_event_wait(mini_os_event_group_t* event_group, mini_os_uin
                 return MINI_OS_ERR_TIMEOUT;
             }
             if (mini_os_sync_wait_park(&event_group->wait_list, mask, (mini_os_tick_t)remain, irq) != MINI_OS_OK)
-            {
                 return MINI_OS_ERR_TIMEOUT;
-            }
         }
         else if (mini_os_sync_wait_park(&event_group->wait_list, mask, timeout_tick, irq) != MINI_OS_OK)
         {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file mem_heap.h
  * @brief Memory heap definition and link lds script only control heap size
@@ -7,10 +7,11 @@
 #ifndef MEM_HEAP_H
 #define MEM_HEAP_H
 #if defined(__cplusplus)
-extern "C" {
+extern "C"
+{
 #endif
-#include "redef.h"
 #include "mini_config.h"
+#include "redef.h"
 extern char __mini_os_heap_start[];
 extern char __mini_os_heap_end[];
 #define MINI_OS_HEAP_SIZE ((mini_os_size_t)(__mini_os_heap_end - __mini_os_heap_start))
@@ -18,7 +19,8 @@ extern char __mini_os_heap_end[];
  * @brief Slab page size
  * @note
  *  - Slab page size must be a power of 2 and not exceed 64KB (default 2KB)
- *  - Slab zone is carved out of the pool once at init: pages = min(MINI_OS_SLAB_PAGE_MAX, heap/MINI_OS_SLAB_PROPORTION / page size)
+ *  - Slab zone is carved out of the pool once at init: pages = min(MINI_OS_SLAB_PAGE_MAX,
+ * heap/MINI_OS_SLAB_PROPORTION / page size)
  *  - normal it's take up 1/4 or 1/5 of the heap and peer slab buffer in page mini default 16
  */
 #ifdef CONFIG_MINI_OS_SLAB_PAGE_SIZE
@@ -65,8 +67,8 @@ extern char __mini_os_heap_end[];
 #endif
 #define MINI_OS_SLAB_MAX_BYTES (MINI_OS_SLAB_MINI_BYTES << (MINI_OS_SLAB_CLASS_COUNT - 1))
 
-MINI_OS_ASSERT(MINI_OS_SLAB_MINI_BYTES>=16, "MINI_OS_SLAB_MINI_BYTES must not be less than 16");
-MINI_OS_ASSERT(((MINI_OS_SLAB_PAGE_SIZE) & ((MINI_OS_SLAB_PAGE_SIZE) - 1)) == 0, "MINI_OS_SLAB_PAGE_SIZE must be a power of 2");
+MINI_OS_ASSERT(MINI_OS_SLAB_MINI_BYTES >= 16, "MINI_OS_SLAB_MINI_BYTES must not be less than 16");
+MINI_OS_ASSERT(((MINI_OS_SLAB_PAGE_SIZE) & ((MINI_OS_SLAB_PAGE_SIZE)-1)) == 0, "MINI_OS_SLAB_PAGE_SIZE must be a power of 2");
 MINI_OS_ASSERT((MINI_OS_SLAB_PAGE_SIZE) <= (1u << 16), "MINI_OS_SLAB_PAGE_SIZE must not exceed 64KB");
 MINI_OS_ASSERT((MINI_OS_SLAB_PAGE_SIZE) >= (MINI_OS_SLAB_MAX_BYTES), "MINI_OS_SLAB_PAGE_SIZE must not be smaller than the max slab class");
 #if defined(CONFIG_MINI_OS_SLAB_512) && defined(CONFIG_OPEN_SLAB)
@@ -87,7 +89,8 @@ MINI_OS_ASSERT((MINI_OS_SLAB_PAGE_MAX) >= (MINI_OS_SLAB_CLASS_COUNT), "CONFIG_MI
 #else
 #define MINI_OS_SLAB_STATIC_SIZE 1024
 #endif
-MINI_OS_ASSERT((MINI_OS_SLAB_STATIC_SIZE % MINI_OS_SLAB_PAGE_SIZE) == 0, "MINI_OS_SLAB_STATIC_SIZE must be a multiple of MINI_OS_SLAB_PAGE_SIZE (one size class per page)");
+MINI_OS_ASSERT((MINI_OS_SLAB_STATIC_SIZE % MINI_OS_SLAB_PAGE_SIZE) == 0, "MINI_OS_SLAB_STATIC_SIZE must be a multiple of MINI_OS_SLAB_PAGE_SIZE (one "
+                                                                         "size class per page)");
 MINI_OS_ASSERT((MINI_OS_SLAB_STATIC_SIZE) <= (1u << 16), "MINI_OS_SLAB_STATIC_SIZE must not exceed 64KB");
 #ifdef CONFIG_MINI_OS_SLAB_512
 MINI_OS_ASSERT((MINI_OS_SLAB_STATIC_SIZE) >= (MINI_OS_SLAB_CLASS_COUNT * MINI_OS_SLAB_PAGE_SIZE), "CONFIG_MINI_OS_SLAB_512 needs at least 6 static pages");

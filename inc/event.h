@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @author H-000-H
  * @file event.h
@@ -7,21 +7,22 @@
 #ifndef EVENT_H
 #define EVENT_H
 #if defined(__cplusplus)
-extern "C" {
+extern "C"
+{
 #endif
 #include "list.h"
-#include "redef.h"
 #include "memory.h"
-#include "thread.h"
 #include "mini_config.h"
+#include "redef.h"
+#include "thread.h"
 
 #if MINI_OS_EVENT
 
 typedef enum mini_os_event_type
 {
-    MINI_OS_EVENT_WHOLE_TYPE =0,
-    MINI_OS_EVENT_OR_TYPE    ,
-}mini_os_event_type_t;
+    MINI_OS_EVENT_WHOLE_TYPE = 0,
+    MINI_OS_EVENT_OR_TYPE,
+} mini_os_event_type_t;
 typedef struct mini_os_event_group mini_os_event_group_t;
 /**
  * @brief Event group definition
@@ -31,11 +32,11 @@ typedef struct mini_os_event_group mini_os_event_group_t;
  */
 struct mini_os_event_group
 {
-    mini_os_uint32_t event;                 /**< Event flags */
-    mini_os_list_t wait_list;               /**< Wait list */
-    mini_os_event_type_t  event_type;       /**< the whole bit be used by event group or use only the 32 bit */
-    mini_os_bool_t   is_auto_clear;         /**< is clear by self */
-    mini_os_bool_t   heap_owned;            /**< MINI_OS_TRUE when the descriptor came from the heap */
+    mini_os_uint32_t     event;         /**< Event flags */
+    mini_os_list_t       wait_list;     /**< Wait list */
+    mini_os_event_type_t event_type;    /**< the whole bit be used by event group or use only the 32 bit */
+    mini_os_bool_t       is_auto_clear; /**< is clear by self */
+    mini_os_bool_t       heap_owned;    /**< MINI_OS_TRUE when the descriptor came from the heap */
 };
 
 /**
@@ -44,7 +45,7 @@ struct mini_os_event_group
  * @param[in] type event group type (WHOLE or OR)
  * @return mini_os_event_group_t* Event group
  */
-mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini_os_event_type_t type);
+mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id, mini_os_event_type_t type);
 
 /**
  * @brief Create an event group statically
@@ -53,7 +54,7 @@ mini_os_event_group_t* mini_os_event_group_create(mini_os_uint32_t event_id,mini
  * @param[in] type event group type (WHOLE or OR)
  * @return mini_os_event_group_t* Event group
  */
-mini_os_event_group_t* mini_os_event_group_create_static(mini_os_event_group_t* event_group,mini_os_uint32_t event_id,mini_os_event_type_t type);
+mini_os_event_group_t* mini_os_event_group_create_static(mini_os_event_group_t* event_group, mini_os_uint32_t event_id, mini_os_event_type_t type);
 
 /**
  * @brief Delete a heap-created event group and free its memory

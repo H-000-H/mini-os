@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file schedule.c
  * @brief Scheduler implementation
@@ -13,6 +13,7 @@
  *    sentinel, so the head is A again and the thread keeps running
  */
 #include "schedule.h"
+
 #include "err.h"
 #include "list.h"
 #include "mini_config.h"
@@ -21,13 +22,14 @@
 #include "thread.h"
 #include "timer.h"
 
-/** @brief Ready bitmap: bit i set = priority i has a ready or running thread (declared extern in schedule.h / thread.h) */
+/** @brief Ready bitmap: bit i set = priority i has a ready or running thread (declared extern in
+ * schedule.h / thread.h) */
 mini_os_uint32_t g_priority = 0u;
 
 /** @brief Ready/running list head per priority (declared extern in schedule.h) */
 mini_os_list_t g_ready_running_list[MINI_OS_PRIORITY];
 
-extern mini_os_thread_t *mini_os_current_thread;
+extern mini_os_thread_t* mini_os_current_thread;
 
 /** @brief Priority level the scheduler selected on the last switch */
 static mini_os_uint8_t s_current_priority = 0;
@@ -60,13 +62,9 @@ mini_os_err_t mini_os_schedule_init(void)
 
     g_priority = 0;
     for (i = 0; i < (mini_os_uint32_t)MINI_OS_PRIORITY; i++)
-    {
         mini_os_list_init(&g_ready_running_list[i]);
-    }
     for (i = 0; i < (mini_os_uint32_t)MINI_OS_TICK_WHEEL; i++)
-    {
         mini_os_list_init(&s_wheel[i]);
-    }
     s_current_slot = 0;
     return MINI_OS_OK;
 }
@@ -82,8 +80,8 @@ mini_os_err_t mini_os_schedule_init(void)
  */
 mini_os_err_t mini_os_schedule_start(void)
 {
-    MINI_OS_PENDSV_IRQ = 0xFF;   /* PendSV: lowest priority (never preempts user IRQs) */
-    MINI_OS_SYSTICK_IRQ = 0xFE;  /* SysTick: second-lowest */
+    MINI_OS_PENDSV_IRQ = 0xFF;  /* PendSV: lowest priority (never preempts user IRQs) */
+    MINI_OS_SYSTICK_IRQ = 0xFE; /* SysTick: second-lowest */
     mini_os_psp_set(MINI_OS_NONE_THREAD_TO_RESTORE);
     mini_os_set_control(MINI_OS_CONTROL_REGISTER_PSP_PRIVILEGE);
     mini_os_yield_trigger();
@@ -105,37 +103,28 @@ mini_os_err_t mini_os_schedule_start(void)
  */
 mini_os_err_t mini_os_schedule_switch(void)
 {
-    mini_os_uint8_t old_priority;
-    mini_os_uint8_t next_priority;
-    mini_os_list_t *next_node;
-    mini_os_thread_t *next_thread;
+    mini_os_uint8_t   old_priority;
+    mini_os_uint8_t   next_priority;
+    mini_os_list_t*   next_node;
+    mini_os_thread_t* next_thread;
 
     old_priority = s_current_priority;
     if (mini_os_current_thread != MINI_OS_NULL)
     {
         if (mini_os_current_thread->state == MINI_OS_THREAD_STATE_RUNNING)
-        {
             mini_os_current_thread->state = MINI_OS_THREAD_STATE_READY;
-        }
     }
     next_priority = mini_os_get_highest_priority();
     if (next_priority >= (mini_os_uint8_t)MINI_OS_PRIORITY)
-    {
         return MINI_OS_ERR_NODEV;
-    }
     s_current_priority = next_priority;
 
-    if (mini_os_current_thread != MINI_OS_NULL &&
-        next_priority == old_priority &&
-        mini_os_current_thread->state == MINI_OS_THREAD_STATE_READY &&
-        mini_os_current_thread->list_node.next != &mini_os_current_thread->list_node)
+    if (mini_os_current_thread != MINI_OS_NULL && next_priority == old_priority && mini_os_current_thread->state == MINI_OS_THREAD_STATE_READY && mini_os_current_thread->list_node.next != &mini_os_current_thread->list_node)
     {
         /* round-robin: successor, wrap past the sentinel at the tail */
         next_node = mini_os_current_thread->list_node.next;
         if (next_node == &g_ready_running_list[s_current_priority])
-        {
             next_node = next_node->next;
-        }
     }
     else
     {
@@ -182,9 +171,7 @@ mini_os_err_t mini_os_schedule_yield_isr(void)
     if (mini_os_current_thread != MINI_OS_NULL)
     {
         if (mini_os_get_highest_priority() < mini_os_current_thread->priority)
-        {
             mini_os_yield_trigger();
-        }
     }
     mini_os_irq_restore(irq_level);
     return MINI_OS_OK;
@@ -197,13 +184,10 @@ mini_os_err_t mini_os_schedule_yield_isr(void)
  *         already READY/RUNNING, or has an out-of-range priority
  * @note sets the state to READY and the matching bit in the ready bitmap
  */
-mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t *thread)
+mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t* thread)
 {
-    if (!thread || thread->state == MINI_OS_THREAD_STATE_READY ||
-        thread->state == MINI_OS_THREAD_STATE_RUNNING || thread->priority >= MINI_OS_PRIORITY)
-    {
+    if (!thread || thread->state == MINI_OS_THREAD_STATE_READY || thread->state == MINI_OS_THREAD_STATE_RUNNING || thread->priority >= MINI_OS_PRIORITY)
         return MINI_OS_ERR_INVAL;
-    }
     mini_os_irq_t irq_level = mini_os_irq_save();
     thread->state = MINI_OS_THREAD_STATE_READY;
     mini_os_list_tail(&thread->list_node, &g_ready_running_list[thread->priority]);
@@ -220,23 +204,17 @@ mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t *thread)
  * @note clears the ready bitmap bit when the list becomes empty; the state is
  *       left untouched, so the caller decides what the thread becomes next
  */
-mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t *thread)
+mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t* thread)
 {
-    if (!thread || (thread->state != MINI_OS_THREAD_STATE_READY &&
-        thread->state != MINI_OS_THREAD_STATE_RUNNING) ||
-        thread->priority >= MINI_OS_PRIORITY)
-    {
+    if (!thread || (thread->state != MINI_OS_THREAD_STATE_READY && thread->state != MINI_OS_THREAD_STATE_RUNNING) || thread->priority >= MINI_OS_PRIORITY)
         return MINI_OS_ERR_INVAL;
-    }
 
     mini_os_irq_t irq_level = mini_os_irq_save();
 
     mini_os_list_remove(&thread->list_node);
 
     if (mini_os_list_is_empty(&g_ready_running_list[thread->priority]))
-    {
         g_priority &= ~(1u << thread->priority);
-    }
 
     mini_os_irq_restore(irq_level);
     return MINI_OS_OK;
@@ -250,12 +228,10 @@ mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t *th
  * @note clears round and marks the slot as "not in the wheel"; the state stays
  *       BLOCKED, so the caller decides where the thread goes next
  */
-mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t *thread)
+mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t* thread)
 {
     if (!thread || thread->state != MINI_OS_THREAD_STATE_BLOCKED)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     mini_os_irq_t irq_level = mini_os_irq_save();
 
@@ -279,15 +255,15 @@ mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t *thread)
  */
 static void mini_os_tick_decrement(void)
 {
-    mini_os_list_t *node, *next;
-    mini_os_thread_t *thread;
-    s_current_slot = (s_current_slot + 1) & MINI_OS_TICK_WHEEL_MASK;/* increment current slot */
+    mini_os_list_t *  node, *next;
+    mini_os_thread_t* thread;
+    s_current_slot = (s_current_slot + 1) & MINI_OS_TICK_WHEEL_MASK; /* increment current slot */
 
-    for(node = s_wheel[s_current_slot].next; node != &s_wheel[s_current_slot]; node = next)
+    for (node = s_wheel[s_current_slot].next; node != &s_wheel[s_current_slot]; node = next)
     {
         next = node->next;
-        thread = mini_os_container_of(node,mini_os_thread_t,list_node);
-        if(thread->round > 0)
+        thread = mini_os_container_of(node, mini_os_thread_t, list_node);
+        if (thread->round > 0)
         {
             thread->round--;
             continue;
@@ -317,16 +293,14 @@ static void mini_os_tick_decrement(void)
  *          the tail of that slot
  * @note caller must hold interrupts disabled
  */
-mini_os_err_t mini_os_wheel_insert(mini_os_thread_t *thread, mini_os_uint32_t ticks)
+mini_os_err_t mini_os_wheel_insert(mini_os_thread_t* thread, mini_os_uint32_t ticks)
 {
     mini_os_uint32_t slot, round;
 
     if (thread == MINI_OS_NULL || ticks == 0u)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
-    slot  = (s_current_slot + ticks) & MINI_OS_TICK_WHEEL_MASK;
+    slot = (s_current_slot + ticks) & MINI_OS_TICK_WHEEL_MASK;
     round = (ticks - 1u) >> (MINI_OS_CTZ(MINI_OS_TICK_WHEEL));
 
     thread->round = round;
@@ -344,19 +318,15 @@ mini_os_err_t mini_os_wheel_insert(mini_os_thread_t *thread, mini_os_uint32_t ti
  * @note a zero slot distance means a whole wheel is left, reported as
  *       MINI_OS_TICK_WHEEL to stay consistent with the round formula
  */
-mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t *thread)
+mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t* thread)
 {
     mini_os_uint32_t remain;
 
     if (thread == MINI_OS_NULL || thread->wheel_slot >= MINI_OS_TICK_WHEEL)
-    {
         return 0u; /* not parked in the wheel (e.g. waiting on a sync object) */
-    }
     remain = ((mini_os_uint32_t)thread->wheel_slot - s_current_slot) & MINI_OS_TICK_WHEEL_MASK;
     if (remain == 0u)
-    {
         remain = MINI_OS_TICK_WHEEL; /* whole-wheel boundary (matches the -1 round formula) */
-    }
     return remain + thread->round * MINI_OS_TICK_WHEEL;
 }
 
@@ -373,9 +343,7 @@ void mini_os_schedule_delay(mini_os_uint32_t ticks)
     mini_os_irq_t irq_level;
 
     if (mini_os_current_thread == MINI_OS_NULL || ticks == 0u)
-    {
         return;
-    }
     irq_level = mini_os_irq_save();
 
     mini_os_remove_thread_from_ready_running_list(mini_os_current_thread);
@@ -404,14 +372,13 @@ void mini_os_schedule_delay(mini_os_uint32_t ticks)
  * @note consumes the caller's critical section (restores irq_level itself) and
  *       yields; back only after an event wake or a wheel timeout unlinked it
  */
-mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level)
+mini_os_err_t mini_os_sync_wait_park(mini_os_list_t* wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level)
 {
-    mini_os_thread_t *current;
-    mini_os_bool_t done;
-    mini_os_irq_t irq;
+    mini_os_thread_t* current;
+    mini_os_bool_t    done;
+    mini_os_irq_t     irq;
 
-    if (wait_list == MINI_OS_NULL || timeout_tick == 0 ||
-        mini_os_current_thread == MINI_OS_NULL)
+    if (wait_list == MINI_OS_NULL || timeout_tick == 0 || mini_os_current_thread == MINI_OS_NULL)
     {
         mini_os_irq_restore(irq_level);
         return MINI_OS_ERR_INVAL;
@@ -456,16 +423,12 @@ mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t
  */
 static void mini_os_tick_slice_decrement(void)
 {
-    mini_os_thread_t *current_thread = mini_os_current_thread;
+    mini_os_thread_t* current_thread = mini_os_current_thread;
 
     if (current_thread == MINI_OS_NULL || current_thread->init_tick_num == 0)
-    {
         return;
-    }
     if (current_thread->remain_tick > 0)
-    {
         current_thread->remain_tick--;
-    }
     if (current_thread->remain_tick == 0)
     {
         current_thread->remain_tick = current_thread->init_tick_num; /* refill for the next run */
@@ -492,9 +455,7 @@ void mini_os_systick_handler(void)
     g_global_tick++;
 #if MINI_OS_LONG_TIME
     if (g_global_tick == 0u) /* wrapped around: count the overflow */
-    {
         g_global_tick_overflow++;
-    }
 #endif
     mini_os_timer_tick(); /* advance the timer wheel, run/queue expired timers */
     mini_os_irq_restore(irq_level);
@@ -508,7 +469,7 @@ void mini_os_systick_handler(void)
  * @return MINI_OS_OK always
  * @note only compiled with MINI_OS_LONG_TIME
  */
-mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_t *overflow)
+mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t* tick, mini_os_uint32_t* overflow)
 {
     *tick = g_global_tick;
     *overflow = g_global_tick_overflow;
@@ -521,7 +482,7 @@ mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_
  * @param[out] tick receives the tick count
  * @return MINI_OS_OK always
  */
-mini_os_err_t mini_os_get_tick(mini_os_tick_t *tick)
+mini_os_err_t mini_os_get_tick(mini_os_tick_t* tick)
 {
     *tick = g_global_tick;
     return MINI_OS_OK;
@@ -538,9 +499,7 @@ mini_os_uint32_t mini_os_tick_until(mini_os_uint32_t deadline)
     mini_os_uint32_t now = g_global_tick; /* aligned 32-bit read is atomic */
 
     if ((mini_os_int32_t)(deadline - now) <= 0)
-    {
         return 0u; /* reached or passed */
-    }
     return deadline - now;
 }
 
@@ -555,14 +514,11 @@ MINI_OS_WEAK void mini_os_systick_init(uint32_t ticks_per_ms)
     uint32_t reload;
 
     if (ticks_per_ms == 0u)
-    {
         ticks_per_ms = 1000u / MINI_OS_DEFAULT_SYSTICK; /* 0 -> default tick rate */
-    }
 
     reload = (MINI_OS_CPU_CLOCK_HZ / 1000u) * ticks_per_ms; /* cycles per tick */
 
-
     MINI_OS_SYSTICK_RELOAD = reload - 1u;
     MINI_OS_SYSTICK_VAL = 0u;
-    MINI_OS_SYSTICK_CTRL = MINI_OS_SYSTICK_CTRL_CLKSOURCE |MINI_OS_SYSTICK_CTRL_TICKINT |MINI_OS_SYSTICK_CTRL_ENABLE;
+    MINI_OS_SYSTICK_CTRL = MINI_OS_SYSTICK_CTRL_CLKSOURCE | MINI_OS_SYSTICK_CTRL_TICKINT | MINI_OS_SYSTICK_CTRL_ENABLE;
 }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file port.h
  * @brief export symbols for port layer
@@ -7,17 +7,18 @@
 #ifndef PORT_H
 #define PORT_H
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 #include "redef.h"
-typedef void (*svc_call_back)(mini_os_uint32_t *frame, void *arg);
+typedef void (*svc_call_back)(mini_os_uint32_t* frame, void* arg);
 
 /* SVC helpers */
-void mini_os_svc_set_callback(svc_call_back cb, void *arg);
+void mini_os_svc_set_callback(svc_call_back cb, void* arg);
 
-mini_os_uint8_t mini_os_svc_get_num(mini_os_uint32_t *frame);
+mini_os_uint8_t mini_os_svc_get_num(mini_os_uint32_t* frame);
 
-void mini_os_svc_dispatch(mini_os_uint32_t *frame, svc_call_back cb, void *arg);
+void mini_os_svc_dispatch(mini_os_uint32_t* frame, svc_call_back cb, void* arg);
 
 /* Assembly entry points (naked, defined in port.c) */
 void pendsv_handler(void);
@@ -95,7 +96,7 @@ void mini_os_dcache_disable(void);
  * @param[in] size range length in bytes
  * @note needed after writing code to RAM at runtime (loader / OTA)
  */
-void mini_os_icache_invalidate_by_addr(void *addr, mini_os_uint32_t size);
+void mini_os_icache_invalidate_by_addr(void* addr, mini_os_uint32_t size);
 
 /**
  * @brief Data cache maintenance on [addr, addr + size)
@@ -109,7 +110,7 @@ void mini_os_icache_invalidate_by_addr(void *addr, mini_os_uint32_t size);
  *       rejects whole-cache invalidate for the same reason): only use it on
  *       ranges the CPU has not written, e.g. right after a DMA writeback.
  */
-mini_os_err_t mini_os_dcache_ops(void *addr, mini_os_uint32_t size, mini_os_uint32_t ops);
+mini_os_err_t mini_os_dcache_ops(void* addr, mini_os_uint32_t size, mini_os_uint32_t ops);
 #endif /* MINI_OS_ARCH == MINI_OS_ARCH_M7 */
 
 #ifdef __cplusplus

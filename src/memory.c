@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file memory.c
  * @brief malloc/free model memory manager (free list by default; with
@@ -8,8 +8,9 @@
  */
 
 #include "memory.h"
-#include "mem_heap.h"
+
 #include "err.h"
+#include "mem_heap.h"
 #include "redef.h"
 
 /* -------------------------------------------------------------------------- */
@@ -20,8 +21,7 @@
 
 /* Free-list block header size: the header is embedded in pool memory and the
  * data area follows it, aligned to 8 bytes. */
-#define MINI_OS_MEMORY_HDR_SIZE \
-    MINI_OS_MEMORY_ALIGN_UP(sizeof(mini_os_buffer_freelist_config_t), MINI_OS_MEMORY_ALIGN_SIZE)
+#define MINI_OS_MEMORY_HDR_SIZE MINI_OS_MEMORY_ALIGN_UP(sizeof(mini_os_buffer_freelist_config_t), MINI_OS_MEMORY_ALIGN_SIZE)
 
 /* Header state magic: basis for double-free / invalid-pointer detection */
 #define MINI_OS_MEMORY_MAGIC_ALLOC 0xA5A5A5A5u /**< block is allocated */
@@ -58,10 +58,10 @@ static void mini_os_memory_freelist_merge(struct mini_os_memory* pool, mini_os_b
 
     while (node != &pool->free_list)
     {
-        mini_os_list_t* next_node = node->next;
+        mini_os_list_t*                   next_node = node->next;
         mini_os_buffer_freelist_config_t* it = mini_os_container_of(node, mini_os_buffer_freelist_config_t, node);
-        mini_os_uint8_t* it_end = (mini_os_uint8_t*)it + MINI_OS_MEMORY_HDR_SIZE + it->size;
-        mini_os_uint8_t* blk_end = (mini_os_uint8_t*)blk + MINI_OS_MEMORY_HDR_SIZE + blk->size;
+        mini_os_uint8_t*                  it_end = (mini_os_uint8_t*)it + MINI_OS_MEMORY_HDR_SIZE + it->size;
+        mini_os_uint8_t*                  blk_end = (mini_os_uint8_t*)blk + MINI_OS_MEMORY_HDR_SIZE + blk->size;
 
         if (it_end == (mini_os_uint8_t*)blk)
         {
@@ -102,9 +102,7 @@ static mini_os_buffer_freelist_config_t* mini_os_memory_freelist_alloc(struct mi
         mini_os_buffer_freelist_config_t* it = mini_os_container_of(node, mini_os_buffer_freelist_config_t, node);
 
         if (it->size < size)
-        {
             continue;
-        }
         {
             mini_os_size_t remain = it->size - size;
 
@@ -112,8 +110,7 @@ static mini_os_buffer_freelist_config_t* mini_os_memory_freelist_alloc(struct mi
             mini_os_list_remove(&it->node);
             if (remain >= MINI_OS_MEMORY_HDR_SIZE + MINI_OS_MEMORY_MIN_BLOCK)
             {
-                mini_os_buffer_freelist_config_t* split =
-                    (mini_os_buffer_freelist_config_t*)((mini_os_uint8_t*)it + MINI_OS_MEMORY_HDR_SIZE + size);
+                mini_os_buffer_freelist_config_t* split = (mini_os_buffer_freelist_config_t*)((mini_os_uint8_t*)it + MINI_OS_MEMORY_HDR_SIZE + size);
                 split->size = remain - MINI_OS_MEMORY_HDR_SIZE;
                 mini_os_list_init(&split->node);
                 mini_os_memory_freelist_push(pool, split); /* remainder stays on the list (push sets FREE) */
@@ -138,17 +135,12 @@ static mini_os_buffer_freelist_config_t* mini_os_memory_freelist_alloc(struct mi
  */
 static void mini_os_memory_freelist_free(struct mini_os_memory* pool, void* ptr)
 {
-    mini_os_buffer_freelist_config_t* blk =
-        (mini_os_buffer_freelist_config_t*)((mini_os_uint8_t*)ptr - MINI_OS_MEMORY_HDR_SIZE);
+    mini_os_buffer_freelist_config_t* blk = (mini_os_buffer_freelist_config_t*)((mini_os_uint8_t*)ptr - MINI_OS_MEMORY_HDR_SIZE);
 
     if (blk->magic != MINI_OS_MEMORY_MAGIC_ALLOC)
-    {
         return; /* double free or invalid pointer: header is not in the allocated state, reject */
-    }
     if ((blk->size & (MINI_OS_MEMORY_ALIGN_SIZE - 1)) != 0)
-    {
         return; /* corrupted header: size not aligned */
-    }
     blk->magic = MINI_OS_MEMORY_MAGIC_FREE;
     mini_os_list_init(&blk->node);
     mini_os_memory_freelist_merge(pool, blk);
@@ -171,20 +163,12 @@ static mini_os_int32_t mini_os_memory_seg_add(struct mini_os_memory* pool, mini_
     mini_os_uint32_t shift_index;
 
     if (pool->seg_count >= MINI_OS_MEMORY_MAX_SEGS)
-    {
         return -1;
-    }
     for (insert_index = 0; insert_index < pool->seg_count; insert_index++)
-    {
         if (len < pool->segs[insert_index].len)
-        {
             break;
-        }
-    }
     for (shift_index = pool->seg_count; shift_index > insert_index; shift_index--)
-    {
         pool->segs[shift_index] = pool->segs[shift_index - 1];
-    }
     pool->segs[insert_index].base = base;
     pool->segs[insert_index].len = len;
     pool->seg_count++;
@@ -208,9 +192,7 @@ static mini_os_bool_t mini_os_memory_ptr_in_segments(const struct mini_os_memory
         const mini_os_uint8_t* end = base + pool->segs[i].len;
 
         if ((const mini_os_uint8_t*)ptr >= base + MINI_OS_MEMORY_HDR_SIZE && (const mini_os_uint8_t*)ptr <= end)
-        {
             return MINI_OS_TRUE;
-        }
     }
     return MINI_OS_FALSE;
 }
@@ -234,15 +216,10 @@ static mini_os_uint32_t mini_os_slab_class_of(mini_os_size_t size)
 {
     mini_os_uint32_t cls = 0;
 
-    while (cls + 1u < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT &&
-           size > ((mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls))
-    {
+    while (cls + 1u < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT && size > ((mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls))
         cls++;
-    }
     if (size > ((mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls))
-    {
         return (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; /* over the max class */
-    }
     return cls;
 }
 
@@ -255,8 +232,8 @@ static mini_os_uint32_t mini_os_slab_class_of(mini_os_size_t size)
  */
 static void mini_os_slab_zone_link(mini_os_uint8_t* base, mini_os_size_t zone_size, mini_os_single_list_t* free_list)
 {
-    mini_os_size_t seg_total = zone_size / MINI_OS_SLAB_PAGE_SIZE;
-    mini_os_size_t i;
+    mini_os_size_t   seg_total = zone_size / MINI_OS_SLAB_PAGE_SIZE;
+    mini_os_size_t   i;
     mini_os_uint32_t cls;
 
     for (i = 0; i < seg_total; i++)
@@ -290,9 +267,7 @@ static void* mini_os_slab_class_alloc(mini_os_single_list_t* free_list, mini_os_
     mini_os_single_list_t* slot;
 
     if (mini_os_single_list_is_empty(&free_list[cls]) == MINI_OS_TRUE)
-    {
         return MINI_OS_NULL;
-    }
     slot = free_list[cls].next;
     mini_os_single_list_remove(slot, &free_list[cls]);
     return (void*)slot;
@@ -304,25 +279,20 @@ static void* mini_os_slab_class_alloc(mini_os_single_list_t* free_list, mini_os_
  * @return 1 = freed; 0 = pointer not inside the zone;
  *         -1 = inside the zone but not aligned to a slot boundary (rejected)
  */
-static mini_os_int32_t mini_os_slab_zone_free(const mini_os_uint8_t* base, mini_os_size_t zone_size,
-                                              mini_os_single_list_t* free_list, void* ptr)
+static mini_os_int32_t mini_os_slab_zone_free(const mini_os_uint8_t* base, mini_os_size_t zone_size, mini_os_single_list_t* free_list, void* ptr)
 {
     const mini_os_uint8_t* p = (const mini_os_uint8_t*)ptr;
-    mini_os_size_t offset;
-    mini_os_size_t slot_size;
-    mini_os_uint32_t cls;
+    mini_os_size_t         offset;
+    mini_os_size_t         slot_size;
+    mini_os_uint32_t       cls;
 
     if (zone_size == 0 || p < base || p >= base + zone_size)
-    {
         return 0;
-    }
     offset = (mini_os_size_t)(p - base);
     cls = (mini_os_uint32_t)((offset / MINI_OS_SLAB_PAGE_SIZE) % MINI_OS_SLAB_CLASS_COUNT);
     slot_size = (mini_os_size_t)MINI_OS_SLAB_MINI_BYTES << cls;
     if ((offset % slot_size) != 0)
-    {
         return -1; /* not aligned to a slot boundary: invalid pointer */
-    }
     {
         mini_os_single_list_t* slot = (mini_os_single_list_t*)ptr;
 
@@ -355,24 +325,21 @@ static mini_os_int32_t mini_os_slab_zone_free(const mini_os_uint8_t* base, mini_
  */
 static mini_os_err_t mini_os_memory_slab_zone_setup(struct mini_os_memory* pool, mini_os_uint8_t* base, mini_os_size_t len)
 {
-    mini_os_size_t pages = MINI_OS_SLAB_PAGE_MAX;
+    mini_os_size_t   pages = MINI_OS_SLAB_PAGE_MAX;
     mini_os_uint32_t cls;
 
     if (pages * MINI_OS_SLAB_PAGE_SIZE > len / MINI_OS_SLAB_PROPORTION)
-    {
         pages = (len / MINI_OS_SLAB_PROPORTION) / MINI_OS_SLAB_PAGE_SIZE;
-    }
     if (pages == 0)
     {
-        return MINI_OS_ERR_NOMEM; /* pool smaller than page size * proportion; slab configured but 0 pages fit */
+        return MINI_OS_ERR_NOMEM; /* pool smaller than page size * proportion; slab configured but 0
+                                     pages fit */
     }
     pool->slab_base = base;
     pool->slab_size = pages * MINI_OS_SLAB_PAGE_SIZE;
     pool->slab_page_count = pages;
     for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
-    {
         mini_os_single_list_init(&pool->slab_free[cls]);
-    }
     /* Each page serves one size class (page i -> class i %% count), cut and linked as free */
     mini_os_slab_zone_link(base, pool->slab_size, pool->slab_free);
     return MINI_OS_OK;
@@ -390,9 +357,7 @@ static void* mini_os_memory_slab_alloc(struct mini_os_memory* pool, mini_os_size
     mini_os_uint32_t cls = mini_os_slab_class_of(size);
 
     if (cls >= (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT)
-    {
         return MINI_OS_NULL; /* over the max class, caller goes to the free list */
-    }
     return mini_os_slab_class_alloc(pool->slab_free, cls);
 }
 
@@ -403,10 +368,7 @@ static void* mini_os_memory_slab_alloc(struct mini_os_memory* pool, mini_os_size
  * @return 1 = freed; 0 = pointer not inside the slab zone; -1 = inside the
  *         zone but not aligned to a slot boundary (rejected)
  */
-static mini_os_int32_t mini_os_memory_slab_free(struct mini_os_memory* pool, void* ptr)
-{
-    return mini_os_slab_zone_free(pool->slab_base, pool->slab_size, pool->slab_free, ptr);
-}
+static mini_os_int32_t mini_os_memory_slab_free(struct mini_os_memory* pool, void* ptr) { return mini_os_slab_zone_free(pool->slab_base, pool->slab_size, pool->slab_free, ptr); }
 
 #endif /* CONFIG_OPEN_SLAB */
 
@@ -431,19 +393,15 @@ static mini_os_int32_t mini_os_memory_slab_free(struct mini_os_memory* pool, voi
 mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_config_t* config)
 {
     mini_os_buffer_freelist_config_t* whole;
-    mini_os_size_t name_len;
+    mini_os_size_t                    name_len;
 #ifdef CONFIG_OPEN_SLAB
     mini_os_uint32_t cls;
 #endif
 
     if (pool == MINI_OS_NULL || config == MINI_OS_NULL || config->static_mem == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if (config->static_len < MINI_OS_MEMORY_HDR_SIZE + MINI_OS_MEMORY_MIN_BLOCK)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     /* Copy the debug name (bounded, always NUL-terminated) */
     name_len = 0;
@@ -467,9 +425,7 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
     MINI_OS_ATOMIC_STORE(&pool->peak, 0, MINI_OS_SEQ_CST);
 #ifdef CONFIG_OPEN_SLAB
     for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
-    {
         mini_os_single_list_init(&pool->slab_free[cls]);
-    }
     pool->slab_base = MINI_OS_NULL;
     pool->slab_size = 0;
     pool->slab_page_count = 0;
@@ -478,21 +434,20 @@ mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_c
     /* slab zone first, then the remainder as one free block */
     {
         mini_os_uint8_t* free_base = pool->pool_base;
-        mini_os_size_t free_len = config->static_len;
+        mini_os_size_t   free_len = config->static_len;
 
 #ifdef CONFIG_OPEN_SLAB
         if (mini_os_memory_slab_zone_setup(pool, free_base, free_len) != MINI_OS_OK)
         {
-            return MINI_OS_ERR_NOMEM; /* pool too small to carve 1 slab page (threshold = page size * proportion) */
+            return MINI_OS_ERR_NOMEM; /* pool too small to carve 1 slab page (threshold = page size
+                                       * proportion) */
         }
         free_base += pool->slab_size;
         free_len -= pool->slab_size;
 #endif
         /* Register the initial segment; the whole segment becomes a single free block */
         if (mini_os_memory_seg_add(pool, free_base, free_len) != 0)
-        {
             return MINI_OS_ERR_NOSPC; /* cannot happen: the table was empty */
-        }
         whole = (mini_os_buffer_freelist_config_t*)free_base;
         whole->size = free_len - MINI_OS_MEMORY_HDR_SIZE;
         mini_os_list_init(&whole->node);
@@ -516,9 +471,7 @@ mini_os_err_t mini_os_memory_deinit(mini_os_memory_t* pool)
 #endif
 
     if (pool == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     mini_os_list_init(&pool->free_list);
     pool->seg_count = 0;
     pool->pool_base = MINI_OS_NULL;
@@ -529,9 +482,7 @@ mini_os_err_t mini_os_memory_deinit(mini_os_memory_t* pool)
     MINI_OS_ATOMIC_STORE(&pool->peak, 0, MINI_OS_SEQ_CST);
 #ifdef CONFIG_OPEN_SLAB
     for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
-    {
         mini_os_single_list_init(&pool->slab_free[cls]);
-    }
     pool->slab_base = MINI_OS_NULL;
     pool->slab_size = 0;
     pool->slab_page_count = 0;
@@ -551,9 +502,7 @@ static void mini_os_memory_count_alloc(struct mini_os_memory* pool)
 
     MINI_OS_ATOMIC_STORE(&pool->used_count, used, MINI_OS_SEQ_CST);
     if (used > MINI_OS_ATOMIC_LOAD(&pool->peak, MINI_OS_SEQ_CST))
-    {
         MINI_OS_ATOMIC_STORE(&pool->peak, used, MINI_OS_SEQ_CST);
-    }
 }
 
 /**
@@ -571,34 +520,26 @@ static void mini_os_memory_count_alloc(struct mini_os_memory* pool)
  */
 void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size)
 {
-    void* ptr = MINI_OS_NULL;
+    void*         ptr = MINI_OS_NULL;
     mini_os_irq_t lock_state;
 
     if (pool == MINI_OS_NULL || size == 0)
-    {
         return MINI_OS_NULL;
-    }
     lock_state = mini_os_irq_save();
 #ifdef CONFIG_OPEN_SLAB
     /* slab class first, free list below as the fallback */
     if (size <= MINI_OS_SLAB_MAX_BYTES)
-    {
         ptr = mini_os_memory_slab_alloc(pool, size);
-    }
 #endif
     if (ptr == MINI_OS_NULL)
     {
         mini_os_buffer_freelist_config_t* blk = mini_os_memory_freelist_alloc(pool, size);
 
         if (blk != MINI_OS_NULL)
-        {
             ptr = (mini_os_uint8_t*)blk + MINI_OS_MEMORY_HDR_SIZE;
-        }
     }
     if (ptr != MINI_OS_NULL)
-    {
         mini_os_memory_count_alloc(pool);
-    }
     mini_os_irq_restore(lock_state);
     return ptr;
 }
@@ -620,23 +561,20 @@ void* mini_os_memory_alloc(mini_os_memory_t* pool, mini_os_size_t size)
  */
 mini_os_err_t mini_os_memory_free(mini_os_memory_t* pool, void* ptr)
 {
-    mini_os_irq_t lock_state;
+    mini_os_irq_t   lock_state;
     mini_os_int32_t slab_ret = 0;
-    mini_os_bool_t freed = MINI_OS_FALSE;
+    mini_os_bool_t  freed = MINI_OS_FALSE;
 
     if (pool == MINI_OS_NULL || ptr == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     lock_state = mini_os_irq_save();
 #ifdef CONFIG_OPEN_SLAB
     slab_ret = mini_os_memory_slab_free(pool, ptr);
     if (slab_ret > 0)
-    {
         freed = MINI_OS_TRUE;
-    }
 #endif
-    /* slab_ret == 0: not part of any slab page, try the free list; == -1: inside a page but invalid, reject */
+    /* slab_ret == 0: not part of any slab page, try the free list; == -1: inside a page but
+     * invalid, reject */
     if (freed == MINI_OS_FALSE && slab_ret == 0 && mini_os_memory_ptr_in_segments(pool, ptr) == MINI_OS_TRUE)
     {
         mini_os_memory_freelist_free(pool, ptr);
@@ -647,9 +585,7 @@ mini_os_err_t mini_os_memory_free(mini_os_memory_t* pool, void* ptr)
         mini_os_uint32_t used = MINI_OS_ATOMIC_LOAD(&pool->used_count, MINI_OS_SEQ_CST);
 
         if (used > 0)
-        {
             MINI_OS_ATOMIC_STORE(&pool->used_count, used - 1, MINI_OS_SEQ_CST);
-        }
     }
     mini_os_irq_restore(lock_state);
     return (freed == MINI_OS_TRUE) ? MINI_OS_OK : MINI_OS_ERR_INVAL;
@@ -669,12 +605,10 @@ mini_os_err_t mini_os_memory_free(mini_os_memory_t* pool, void* ptr)
 mini_os_err_t mini_os_memory_expand(mini_os_memory_t* pool, void* mem, mini_os_size_t len)
 {
     mini_os_buffer_freelist_config_t* seg;
-    mini_os_irq_t lock_state;
+    mini_os_irq_t                     lock_state;
 
     if (pool == MINI_OS_NULL || mem == MINI_OS_NULL || len < MINI_OS_MEMORY_HDR_SIZE + MINI_OS_MEMORY_MIN_BLOCK)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     lock_state = mini_os_irq_save();
     if (mini_os_memory_seg_add(pool, (mini_os_uint8_t*)mem, len) != 0)
     {
@@ -699,10 +633,7 @@ mini_os_err_t mini_os_memory_expand(mini_os_memory_t* pool, void* mem, mini_os_s
  * @note the critical section masks interrupts and the native heap is never
  *       touched, so the ISR path is identical to the thread path
  */
-void* mini_os_memory_alloc_isr(mini_os_memory_t* pool, mini_os_size_t size)
-{
-    return mini_os_memory_alloc(pool, size);
-}
+void* mini_os_memory_alloc_isr(mini_os_memory_t* pool, mini_os_size_t size) { return mini_os_memory_alloc(pool, size); }
 
 /**
  * @brief Return a block to the pool from ISR context (equivalent to
@@ -712,10 +643,7 @@ void* mini_os_memory_alloc_isr(mini_os_memory_t* pool, mini_os_size_t size)
  * @return MINI_OS_OK when the block was released; MINI_OS_ERR_INVAL on invalid
  *         arguments or an invalid pointer
  */
-mini_os_err_t mini_os_memory_free_isr(mini_os_memory_t* pool, void* ptr)
-{
-    return mini_os_memory_free(pool, ptr);
-}
+mini_os_err_t mini_os_memory_free_isr(mini_os_memory_t* pool, void* ptr) { return mini_os_memory_free(pool, ptr); }
 
 /* -------------------------------------------------------------------------- */
 /* Statistics / diagnostics                                                   */
@@ -729,9 +657,7 @@ mini_os_err_t mini_os_memory_free_isr(mini_os_memory_t* pool, void* ptr)
 mini_os_size_t mini_os_memory_size(const mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
-    {
         return 0;
-    }
     return pool->total_size;
 }
 
@@ -745,12 +671,10 @@ mini_os_size_t mini_os_memory_size(const mini_os_memory_t* pool)
 mini_os_size_t mini_os_memory_free_space(const mini_os_memory_t* pool)
 {
     mini_os_size_t total;
-    mini_os_irq_t lock_state;
+    mini_os_irq_t  lock_state;
 
     if (pool == MINI_OS_NULL || pool->pool_base == MINI_OS_NULL)
-    {
         return 0;
-    }
     /* free_size is maintained by the alloc/free paths; no free-list walk needed */
     lock_state = mini_os_irq_save();
     total = pool->free_size;
@@ -766,9 +690,7 @@ mini_os_size_t mini_os_memory_free_space(const mini_os_memory_t* pool)
 mini_os_uint32_t mini_os_memory_used(const mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
-    {
         return 0;
-    }
     return MINI_OS_ATOMIC_LOAD(&pool->used_count, MINI_OS_SEQ_CST);
 }
 
@@ -780,9 +702,7 @@ mini_os_uint32_t mini_os_memory_used(const mini_os_memory_t* pool)
 mini_os_uint32_t mini_os_memory_peak(const mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
-    {
         return 0;
-    }
     return MINI_OS_ATOMIC_LOAD(&pool->peak, MINI_OS_SEQ_CST);
 }
 
@@ -794,9 +714,7 @@ mini_os_uint32_t mini_os_memory_peak(const mini_os_memory_t* pool)
 mini_os_err_t mini_os_memory_reset_peak(mini_os_memory_t* pool)
 {
     if (pool == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     MINI_OS_ATOMIC_STORE(&pool->peak, MINI_OS_ATOMIC_LOAD(&pool->used_count, MINI_OS_SEQ_CST), MINI_OS_SEQ_CST);
     return MINI_OS_OK;
 }
@@ -806,8 +724,8 @@ mini_os_err_t mini_os_memory_reset_peak(mini_os_memory_t* pool)
 /* (mem_heap.h / mini-os-heap.ld)                                              */
 /* -------------------------------------------------------------------------- */
 
-static mini_os_memory_t s_mini_os_heap_pool; /**< global heap pool descriptor */
-static mini_os_bool_t s_mini_os_heap_ready = MINI_OS_FALSE; /**< heap ready flag */
+static mini_os_memory_t s_mini_os_heap_pool;                  /**< global heap pool descriptor */
+static mini_os_bool_t   s_mini_os_heap_ready = MINI_OS_FALSE; /**< heap ready flag */
 
 /* -------------------------------------------------------------------------- */
 /* Static slab zone (CONFIG_MINI_OS_SLAB_STATIC): an independent static array, */
@@ -817,9 +735,10 @@ static mini_os_bool_t s_mini_os_heap_ready = MINI_OS_FALSE; /**< heap ready flag
 #ifdef CONFIG_MINI_OS_SLAB_STATIC
 
 /** Static slab zone storage (RAM, owned by the allocator) */
-static mini_os_uint8_t s_mini_os_slab_static_mem[MINI_OS_SLAB_STATIC_SIZE] MINI_OS_ALIGN(8);
-static mini_os_single_list_t s_mini_os_slab_static_free[MINI_OS_SLAB_CLASS_COUNT]; /**< free slot list per size class (sentinels) */
-static mini_os_bool_t s_mini_os_slab_static_ready = MINI_OS_FALSE; /**< static zone ready flag */
+static mini_os_uint8_t       s_mini_os_slab_static_mem[MINI_OS_SLAB_STATIC_SIZE] MINI_OS_ALIGN(8);
+static mini_os_single_list_t s_mini_os_slab_static_free[MINI_OS_SLAB_CLASS_COUNT]; /**< free slot list per size class
+                                                                                      (sentinels) */
+static mini_os_bool_t s_mini_os_slab_static_ready = MINI_OS_FALSE;                 /**< static zone ready flag */
 
 /**
  * @brief Cut the static zone into size-class pages and link every slot as
@@ -830,9 +749,7 @@ static void mini_os_slab_static_zone_setup(void)
     mini_os_uint32_t cls;
 
     for (cls = 0; cls < (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT; cls++)
-    {
         mini_os_single_list_init(&s_mini_os_slab_static_free[cls]);
-    }
     /* Each page serves one size class (page i -> class i %% count) */
     mini_os_slab_zone_link(s_mini_os_slab_static_mem, MINI_OS_SLAB_STATIC_SIZE, s_mini_os_slab_static_free);
     s_mini_os_slab_static_ready = MINI_OS_TRUE;
@@ -848,9 +765,7 @@ static void* mini_os_slab_static_alloc(mini_os_size_t size)
     mini_os_uint32_t cls = mini_os_slab_class_of(size);
 
     if (cls >= (mini_os_uint32_t)MINI_OS_SLAB_CLASS_COUNT)
-    {
         return MINI_OS_NULL; /* over the max class, caller goes to the heap */
-    }
     return mini_os_slab_class_alloc(s_mini_os_slab_static_free, cls);
 }
 
@@ -860,10 +775,7 @@ static void* mini_os_slab_static_alloc(mini_os_size_t size)
  * @return 1 = freed; 0 = pointer not inside the static zone;
  *         -1 = inside the zone but not aligned to a slot boundary (rejected)
  */
-static mini_os_int32_t mini_os_slab_static_free(void* ptr)
-{
-    return mini_os_slab_zone_free(s_mini_os_slab_static_mem, MINI_OS_SLAB_STATIC_SIZE, s_mini_os_slab_static_free, ptr);
-}
+static mini_os_int32_t mini_os_slab_static_free(void* ptr) { return mini_os_slab_zone_free(s_mini_os_slab_static_mem, MINI_OS_SLAB_STATIC_SIZE, s_mini_os_slab_static_free, ptr); }
 
 #endif /* CONFIG_MINI_OS_SLAB_STATIC */
 
@@ -878,9 +790,7 @@ MINI_OS_CONSTRUCTOR(101) mini_os_err_t mini_os_heap_validate(void)
 {
     /* page size * proportion must be less than heap size and page limited by init function*/
     if ((mini_os_size_t)MINI_OS_HEAP_SIZE < ((mini_os_size_t)MINI_OS_SLAB_PAGE_SIZE * MINI_OS_SLAB_PROPORTION))
-    {
         return MINI_OS_ERR_NOMEM;
-    }
     return MINI_OS_OK;
 }
 
@@ -915,16 +825,12 @@ MINI_OS_CONSTRUCTOR(MINI_OS_MEMORY_PRESTRUCTOR) static void mini_os_heap_init_ct
     mini_os_slab_static_zone_setup(); /* static zone ready before the heap, no heap dependency */
 #endif
     if ((__mini_os_heap_end - __mini_os_heap_start) <= 0)
-    {
         return; /* linker script anomaly / host environment: heap stays not ready */
-    }
     cfg.name = "heap";
     cfg.static_mem = (void*)__mini_os_heap_start;
     cfg.static_len = MINI_OS_HEAP_SIZE;
     if (mini_os_memory_init(&s_mini_os_heap_pool, &cfg) == MINI_OS_OK)
-    {
         s_mini_os_heap_ready = MINI_OS_TRUE;
-    }
 }
 
 /**
@@ -946,24 +852,18 @@ void* mini_os_malloc(mini_os_size_t size)
 #endif
 
     if (size == 0)
-    {
         return MINI_OS_NULL;
-    }
 #ifdef CONFIG_MINI_OS_SLAB_STATIC
     if (size <= MINI_OS_SLAB_MAX_BYTES && s_mini_os_slab_static_ready == MINI_OS_TRUE)
     {
         ptr = mini_os_slab_static_alloc(size);
         if (ptr != MINI_OS_NULL)
-        {
             return ptr;
-        }
         /* matching class exhausted: fall back to the heap when it exists */
     }
 #endif
     if (s_mini_os_heap_ready != MINI_OS_TRUE)
-    {
         return MINI_OS_NULL;
-    }
     return mini_os_memory_alloc(&s_mini_os_heap_pool, size);
 }
 
@@ -984,23 +884,15 @@ mini_os_err_t mini_os_free(void* ptr)
     mini_os_int32_t result;
 
     if (ptr == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     result = mini_os_slab_static_free(ptr);
     if (result == 1)
-    {
         return MINI_OS_OK; /* pointer belonged to the static slab zone */
-    }
     if (result < 0)
-    {
         return MINI_OS_ERR_INVAL; /* inside the static zone but misaligned */
-    }
 #endif
     if (s_mini_os_heap_ready != MINI_OS_TRUE)
-    {
         return MINI_OS_ERR_DEFER; /* heap not ready, retry later */
-    }
     return mini_os_memory_free(&s_mini_os_heap_pool, ptr);
 }
 
@@ -1016,23 +908,17 @@ mini_os_err_t mini_os_free(void* ptr)
 void* mini_os_calloc(mini_os_size_t count, mini_os_size_t size)
 {
     mini_os_size_t total;
-    void* ptr;
+    void*          ptr;
 
     if (count == 0 || size == 0)
-    {
         return MINI_OS_NULL;
-    }
     /* Multiplication overflow guard */
     if (count > ((mini_os_size_t)-1) / size)
-    {
         return MINI_OS_NULL;
-    }
     total = count * size;
     ptr = mini_os_malloc(total);
     if (ptr != MINI_OS_NULL)
-    {
         MINI_OS_MEMSET(ptr, 0, total);
-    }
     return ptr;
 }
 
@@ -1043,9 +929,6 @@ void* mini_os_calloc(mini_os_size_t count, mini_os_size_t size)
 mini_os_size_t mini_os_heap_free_space(void)
 {
     if (s_mini_os_heap_ready != MINI_OS_TRUE)
-    {
         return 0;
-    }
     return mini_os_memory_free_space(&s_mini_os_heap_pool);
 }
-

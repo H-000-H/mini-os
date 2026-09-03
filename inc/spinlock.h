@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+﻿/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * @file spinlock.h
  * @brief 自旋锁（header-only，两种模式由 MINI_OS_SPINLOCK_ATOMIC 二选一）
@@ -17,11 +17,12 @@
 
 #if MINI_OS_SPINLOCK /* 默认 0：CONFIG_MINI_OS_SPINLOCK=1（或外部预定义）才编译本模块 */
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-#include "redef.h"
 #include "err.h"
 #include "port.h"
+#include "redef.h"
 #include "schedule.h"
 
 typedef struct mini_os_spinlock mini_os_spinlock_t;
@@ -29,10 +30,10 @@ typedef struct mini_os_spinlock mini_os_spinlock_t;
 struct mini_os_spinlock
 {
 #if MINI_OS_SPINLOCK_ATOMIC
-    mini_os_atomic_int8_t locked;   /**< 0 = unlocked, 1 = locked（原子模式） */
+    mini_os_atomic_int8_t locked; /**< 0 = unlocked, 1 = locked（原子模式） */
 #else
-    mini_os_irq_t   irq;            /**< 最外层加锁时保存的中断状态（单核模式） */
-    mini_os_uint8_t nest;           /**< 嵌套深度（单核模式） */
+    mini_os_irq_t   irq;  /**< 最外层加锁时保存的中断状态（单核模式） */
+    mini_os_uint8_t nest; /**< 嵌套深度（单核模式） */
 #endif /* MINI_OS_SPINLOCK_ATOMIC */
 };
 
@@ -41,12 +42,10 @@ struct mini_os_spinlock
  * @param[in] spinlock 待初始化的自旋锁
  * @return MINI_OS_OK 成功；MINI_OS_ERR_INVAL 参数为空
  */
-MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_init(mini_os_spinlock_t *spinlock)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_init(mini_os_spinlock_t* spinlock)
 {
     if (spinlock == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 #if MINI_OS_SPINLOCK_ATOMIC
     MINI_OS_ATOMIC_STORE(&spinlock->locked, 0, MINI_OS_RELAXED);
 #else
@@ -63,12 +62,10 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_init(mini_os_spinlock_t *sp
  * @note 原子模式 TAS 约定：返回 TRUE 表示锁已被占用，拿到锁（返回 FALSE）
  *       才退出循环；单核模式可重入（嵌套计数），最外层保存中断恢复点
  */
-MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_lock(mini_os_spinlock_t *spinlock)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_lock(mini_os_spinlock_t* spinlock)
 {
     if (spinlock == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 #if MINI_OS_SPINLOCK_ATOMIC
     while (MINI_OS_ATOMIC_TEST_AND_SET(&spinlock->locked, MINI_OS_ACQUIRE))
     {
@@ -78,14 +75,12 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_lock(mini_os_spinlock_t *sp
         for (i = 0; i < MINI_OS_SPINLOCK_NUM; i++)
         {
             if (MINI_OS_ATOMIC_LOAD(&spinlock->locked, MINI_OS_RELAXED) == 0)
-            {
-                break; /* 看起来已释放：回到 TAS 重试 */
-            }
+                break;       /* 看起来已释放：回到 TAS 重试 */
             mini_os_pause(); /* 自旋等待提示（port.S: yield 指令） */
         }
 #else
         mini_os_pause(); /* 纯延迟（port.S: yield 指令），不做轮询 */
-#endif /* MINI_OS_SPINLOCK_YIELD */
+#endif                                  /* MINI_OS_SPINLOCK_YIELD */
         (void)mini_os_schedule_yield(); /* 让出 CPU，避免饿死持锁者 */
     }
 #else
@@ -93,9 +88,7 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_lock(mini_os_spinlock_t *sp
         mini_os_irq_t irq = mini_os_irq_save();
 
         if (spinlock->nest == 0u)
-        {
             spinlock->irq = irq; /* 只有最外层需要记住恢复点 */
-        }
         spinlock->nest++;
     }
 #endif /* MINI_OS_SPINLOCK_ATOMIC */
@@ -107,24 +100,18 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_lock(mini_os_spinlock_t *sp
  * @param[in] spinlock 目标自旋锁
  * @return MINI_OS_OK 成功；MINI_OS_ERR_INVAL 参数为空或未加锁（单核模式）
  */
-MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_unlock(mini_os_spinlock_t *spinlock)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_unlock(mini_os_spinlock_t* spinlock)
 {
     if (spinlock == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 #if MINI_OS_SPINLOCK_ATOMIC
     MINI_OS_ATOMIC_STORE(&spinlock->locked, 0, MINI_OS_RELEASE);
 #else
     if (spinlock->nest == 0u)
-    {
         return MINI_OS_ERR_INVAL; /* 未加锁却解锁 */
-    }
     spinlock->nest--;
     if (spinlock->nest == 0u)
-    {
         mini_os_irq_restore(spinlock->irq);
-    }
 #endif /* MINI_OS_SPINLOCK_ATOMIC */
     return MINI_OS_OK;
 }
@@ -135,12 +122,10 @@ MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_unlock(mini_os_spinlock_t *
  * @param[out] locked 接收查询结果：MINI_OS_TRUE = 已被持有
  * @return MINI_OS_OK 成功；MINI_OS_ERR_INVAL 参数为空
  */
-MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_islocked(mini_os_spinlock_t *spinlock, mini_os_bool_t *locked)
+MINI_OS_STATIC_INLINE mini_os_err_t mini_os_spinlock_islocked(mini_os_spinlock_t* spinlock, mini_os_bool_t* locked)
 {
     if (spinlock == MINI_OS_NULL || locked == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 #if MINI_OS_SPINLOCK_ATOMIC
     *locked = (MINI_OS_ATOMIC_LOAD(&spinlock->locked, MINI_OS_RELAXED) != 0) ? MINI_OS_TRUE : MINI_OS_FALSE;
 #else

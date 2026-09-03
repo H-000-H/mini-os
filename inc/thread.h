@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @brief mini-os thread
  * @file thread.h
@@ -9,29 +9,30 @@
 #ifndef MINI_OS_THREAD_H
 #define MINI_OS_THREAD_H
 #if defined(__cplusplus)
-extern "C" {
+extern "C"
+{
 #endif
 #include "memory.h"
-#include <redef.h>
 #include <list.h>
 #include <mini_config.h>
+#include <redef.h>
 
-struct mini_os_semaphore;   
+struct mini_os_semaphore;
 struct mini_os_mutex;
-
+// clang-format off
 typedef struct mini_os_thread mini_os_thread_t;
 /**
  * @brief Structure representing a mini-os thread
  */
 typedef enum
 {
-    MINI_OS_THREAD_STATE_INIT,                  /**< Thread is initialized */
-    MINI_OS_THREAD_STATE_RUNNING,               /**< Thread is running */
-    MINI_OS_THREAD_STATE_READY,                 /**< Thread is ready to run */
-    MINI_OS_THREAD_STATE_SUSPENDED,             /**< Thread is suspended */
-    MINI_OS_THREAD_STATE_BLOCKED,               /**< Thread is blocked */
-    MINI_OS_THREAD_STATE_INVALID,               /**< Thread is invalid */
-    MINI_OS_THREAD_STATE_TERMINATED,            /**< Thread is terminated */
+    MINI_OS_THREAD_STATE_INIT,                                  /**< Thread is initialized */
+    MINI_OS_THREAD_STATE_RUNNING,                               /**< Thread is running */
+    MINI_OS_THREAD_STATE_READY,                                 /**< Thread is ready to run */
+    MINI_OS_THREAD_STATE_SUSPENDED,                             /**< Thread is suspended */
+    MINI_OS_THREAD_STATE_BLOCKED,                               /**< Thread is blocked */
+    MINI_OS_THREAD_STATE_INVALID,                               /**< Thread is invalid */
+    MINI_OS_THREAD_STATE_TERMINATED,                            /**< Thread is terminated */
 } mini_os_thread_state_t;
 
 /**
@@ -40,50 +41,51 @@ typedef enum
 struct mini_os_thread
 {
 
-    void                        *sp;                                    /**< Stack pointer for the thread must in first position in tcp */
-    char                        thread_name[MINI_OS_THREADS_NAME_LEN];          /**< Name of the thread */
-    mini_os_list_t              list_node;                              /**< List node for the thread (ready/running list or time wheel) */
-    mini_os_list_t              wait_node;                              /**< List node for sync-object wait lists (queue send/receive...) */
-    mini_os_list_t              *wait_list;                             /**< Wait list wait_node is parked on (MINI_OS_NULL = no sync wait) */
-    mini_os_bool_t              wait_done;                              /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
-    struct mini_os_mutex        *wait_mutex;                            /**< Mutex this thread is blocked on (MINI_OS_NULL = no mutex wait) */
-    void                        (*entry)(void *);                       /**< Entry function for the thread */
-    void                        *param;                                 /**< Parameter for the entry function */
-    void                        *stack_addr;                            /**< Stack address for the thread */
-    mini_os_uint32_t            stack_size;                             /**< Stack size for the thread */
-    mini_os_thread_state_t      state;                                  /**< State of the thread */
-    mini_os_err_t               err;                                    /**< Error code for the thread */
-    mini_os_uint8_t             priority;                               /**< Effective priority (inheritance may raise it) */
-    mini_os_uint8_t             base_priority;                          /**< Priority requested by the creator/user, inheritance starts here */
-    mini_os_list_t              hold_list;                              /**< Mutexes currently held, linked through mini_os_mutex::hold_node */
-    mini_os_uint32_t                round;                              /**< time wheel round (revolutions until expiry) */
-    mini_os_tick_t              resume_time;                            /**< remaining delay ticks captured at suspend (0 = no wheel wait pending) */
-    mini_os_uint8_t             wheel_slot;                             /**< wheel slot while BLOCKED in the wheel; MINI_OS_TICK_WHEEL = not in wheel */
-    mini_os_user_data_t         user_data;                              /**< User data for the thread */
-    void                        (*thread_cleanup)(void *);              /**< Cleanup function for the thread */
+    void*                 sp;                                    /**< Stack pointer for the thread must in first position in tcp */
+    char                  thread_name[MINI_OS_THREADS_NAME_LEN]; /**< Name of the thread */
+    mini_os_list_t        list_node;                             /**< List node for the thread (ready/running list or time wheel) */
+    mini_os_list_t        wait_node;                             /**< List node for sync-object wait lists (queue send/receive...) */
+    mini_os_list_t*       wait_list;                             /**< Wait list wait_node is parked on (MINI_OS_NULL = no sync wait) */
+    mini_os_bool_t        wait_done;                             /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
+    struct mini_os_mutex* wait_mutex;                            /**< Mutex this thread is blocked on (MINI_OS_NULL = no mutex wait) */
+    void (*entry)(void*);                                        /**< Entry function for the thread */
+    void*                  param;                                /**< Parameter for the entry function */
+    void*                  stack_addr;                           /**< Stack address for the thread */
+    mini_os_uint32_t       stack_size;                           /**< Stack size for the thread */
+    mini_os_thread_state_t state;                                /**< State of the thread */
+    mini_os_err_t          err;                                  /**< Error code for the thread */
+    mini_os_uint8_t        priority;                             /**< Effective priority (inheritance may raise it) */
+    mini_os_uint8_t        base_priority;                        /**< Priority requested by the creator/user, inheritance starts here */
+    mini_os_list_t         hold_list;                            /**< Mutexes currently held, linked through mini_os_mutex::hold_node */
+    mini_os_uint32_t       round;                                /**< time wheel round (revolutions until expiry) */
+    mini_os_tick_t         resume_time;                          /**< remaining delay ticks captured at suspend (0 = no wheel wait pending) */
+    mini_os_uint8_t wheel_slot;                                  /**< wheel slot while BLOCKED in the wheel; MINI_OS_TICK_WHEEL = not in wheel */
+    mini_os_user_data_t user_data;                               /**< User data for the thread */
+    void (*thread_cleanup)(void*);                               /**< Cleanup function for the thread */
 #if MINI_OS_EVENT
-    mini_os_uint32_t            wait_mask;                              /**< Expected event mask while parked on an event-group wait list */
+    mini_os_uint32_t wait_mask;                                 /**< Expected event mask while parked on an event-group wait list */
 #endif
 
 #if MINI_OS_FIND_BY_NAME
-    mini_os_list_t              g_list_node;
+    mini_os_list_t g_list_node;                                 /**< List node for the global thread-by-name registry */    
 #endif
 
 #if MINI_OS_TIME_SLICE
-    mini_os_tick_t              init_tick_num;                          /**< Initial tick for time‑slice */
-    mini_os_tick_t              remain_tick;                            /**< Remaining tick for time‑slice */
+    mini_os_tick_t init_tick_num;                               /**< Initial tick for time‑slice */
+    mini_os_tick_t remain_tick;                                 /**< Remaining tick for time‑slice */
 #endif
 #if MINI_OS_THREAD_DETACH
-    mini_os_bool_t              is_detach;                              /**< enabled detached */
-    mini_os_bool_t              is_terminated;                          /**< enabled terminated */
-    void                        *exit_retval;                           /**< exit return value */
-    struct mini_os_semaphore   *join_wait_sem;                           /**< join wait semaphore (incomplete type pointer) */
+    mini_os_bool_t            is_detach;                        /**< enabled detached */
+    mini_os_bool_t            is_terminated;                    /**< enabled terminated */
+    void*                     exit_retval;                      /**< exit return value */
+    struct mini_os_semaphore* join_wait_sem;                    /**< join wait semaphore (incomplete type pointer) */
 #endif
+// clang-format on
 };
 
 /* Stack alignment: keep the stack base and size 8-byte aligned  */
-#define MINI_OS_STACK_ALIGN_SIZE 8u                                       /**< stack alignment in bytes (Cortex-M: 8) */
-#define MINI_OS_STACK_ALIGN_UP(x) (((x) + (MINI_OS_STACK_ALIGN_SIZE - 1u)) & ~(MINI_OS_STACK_ALIGN_SIZE - 1u))   /**< round up to MINI_OS_STACK_ALIGN_SIZE */
+#define MINI_OS_STACK_ALIGN_SIZE 8u                                                                            /**< stack alignment in bytes (Cortex-M: 8) */
+#define MINI_OS_STACK_ALIGN_UP(x) (((x) + (MINI_OS_STACK_ALIGN_SIZE - 1u)) & ~(MINI_OS_STACK_ALIGN_SIZE - 1u)) /**< round up to MINI_OS_STACK_ALIGN_SIZE */
 
 /**
  * @brief Create a thread stack (pads any size up to the 8-byte granularity)
@@ -103,17 +105,13 @@ MINI_OS_STATIC_INLINE mini_os_uint32_t* mini_os_stack_create(mini_os_size_t size
     mini_os_size_t aligned;
 
     if (out_aligned == MINI_OS_NULL || size == 0U)
-    {
         return MINI_OS_NULL;
-    }
 
     aligned = MINI_OS_STACK_ALIGN_UP(size);
     *out_aligned = aligned;
 
     if (stack == MINI_OS_NULL)
-    {
         return (mini_os_uint32_t*)mini_os_calloc(1u, aligned);
-    }
     if (((mini_os_size_t)stack & (MINI_OS_STACK_ALIGN_SIZE - 1u)) != 0u)
     {
         *out_aligned = 0U;
@@ -132,11 +130,7 @@ MINI_OS_STATIC_INLINE mini_os_uint32_t* mini_os_stack_create(mini_os_size_t size
  * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
  * @note the thread is made ready immediately (INIT -> READY)
  */
-mini_os_thread_t* mini_os_thread_create(                            const char* name,
-                                                                    mini_os_uint32_t stack_size,
-                                                                    mini_os_uint8_t priority,
-                                                                    void (*entry)(void *),
-                                                                    void* param);
+mini_os_thread_t* mini_os_thread_create(const char* name, mini_os_uint32_t stack_size, mini_os_uint8_t priority, void (*entry)(void*), void* param);
 
 /**
  * @brief Delete a thread
@@ -150,7 +144,7 @@ mini_os_thread_t* mini_os_thread_create(                            const char* 
  *       delete is still the preferred way. Deleting a thread that only waits for
  *       a mutex is safe, the owner drops the inherited boost when it releases
  */
-mini_os_err_t mini_os_thread_delete(                                mini_os_thread_t* thread);
+mini_os_err_t mini_os_thread_delete(mini_os_thread_t* thread);
 
 /**
  * @brief Terminate the current thread (never returns)
@@ -160,7 +154,7 @@ mini_os_err_t mini_os_thread_delete(                                mini_os_thre
  *       a joiner parked on this thread is woken, and the TCB is queued for
  *       reclamation by the idle thread
  */
-MINI_OS_NO_RETURN void mini_os_thread_exit(void *retval);
+MINI_OS_NO_RETURN void mini_os_thread_exit(void* retval);
 
 /**
  * @brief Create a thread statically
@@ -174,13 +168,7 @@ MINI_OS_NO_RETURN void mini_os_thread_exit(void *retval);
  * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
  * @note the thread is made ready immediately (INIT -> READY)
  */
-mini_os_thread_t* mini_os_thread_create_static(                     const char* name,
-                                                                    mini_os_uint32_t stack_size,
-                                                                    mini_os_uint8_t priority,
-                                                                    void (*entry)(void *),
-                                                                    void* param,
-                                                                    mini_os_uint32_t* stack_buffer,
-                                                                    mini_os_thread_t* task_buffer);
+mini_os_thread_t* mini_os_thread_create_static(const char* name, mini_os_uint32_t stack_size, mini_os_uint8_t priority, void (*entry)(void*), void* param, mini_os_uint32_t* stack_buffer, mini_os_thread_t* task_buffer);
 
 /**
  * @brief Delete a thread statically
@@ -193,10 +181,7 @@ mini_os_thread_t* mini_os_thread_create_static(                     const char* 
  * @note same teardown as mini_os_thread_delete() (held mutexes are force-released),
  *       only the caller-provided storage is cleared instead of freed
  */
-mini_os_err_t mini_os_thread_delete_static(                         mini_os_thread_t* thread,
-                                                                    mini_os_uint32_t* stack_buffer,
-                                                                    mini_os_thread_t* task_buffer);
-
+mini_os_err_t mini_os_thread_delete_static(mini_os_thread_t* thread, mini_os_uint32_t* stack_buffer, mini_os_thread_t* task_buffer);
 
 /**
  * @brief Find a thread by name
@@ -204,14 +189,14 @@ mini_os_err_t mini_os_thread_delete_static(                         mini_os_thre
  * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
  */
 #if MINI_OS_FIND_BY_NAME
-mini_os_thread_t* mini_os_find_by_name(                             const char* name);
+mini_os_thread_t* mini_os_find_by_name(const char* name);
 #endif
 
 /**
  * @brief Yield the CPU to the scheduler
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_yield(                                 void);
+mini_os_err_t mini_os_thread_yield(void);
 
 /**
  * @brief Suspend a thread
@@ -224,7 +209,7 @@ mini_os_err_t mini_os_thread_yield(                                 void);
  *    is canceled
  *  - suspending the current thread triggers a context switch
  */
-mini_os_err_t mini_os_thread_suspend(                               mini_os_thread_t* thread);
+mini_os_err_t mini_os_thread_suspend(mini_os_thread_t* thread);
 
 /**
  * @brief Resume a suspended thread
@@ -235,28 +220,27 @@ mini_os_err_t mini_os_thread_suspend(                               mini_os_thre
  *    the frozen delay continues exactly
  *  - otherwise: put back into the ready/running list
  */
-mini_os_err_t mini_os_thread_resume(                                mini_os_thread_t* thread);
-
+mini_os_err_t mini_os_thread_resume(mini_os_thread_t* thread);
 
 /**
  * @brief Get the current thread
  * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
  */
-mini_os_thread_t* mini_os_thread_current(                           void);
+mini_os_thread_t* mini_os_thread_current(void);
 
 /**
  * @brief Delay for a specified number of ticks
  * @param[in] ticks Number of ticks to delay
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_delay_tick(                            mini_os_uint32_t ticks);
+mini_os_err_t mini_os_thread_delay_tick(mini_os_uint32_t ticks);
 
 /**
  * @brief Delay for a specified number of milliseconds
  * @param[in] ms Number of milliseconds to delay
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_delay_ms(                              mini_os_uint32_t ms);
+mini_os_err_t mini_os_thread_delay_ms(mini_os_uint32_t ms);
 
 /**
  * @brief Delay until a specified ticks
@@ -266,7 +250,7 @@ mini_os_err_t mini_os_thread_delay_ms(                              mini_os_uint
  * @note returns immediately when the target tick has already passed
  *       (tick-wrap safe); thread context only
  */
-mini_os_err_t mini_os_thread_delay_tick_until(                      mini_os_uint32_t ticks);
+mini_os_err_t mini_os_thread_delay_tick_until(mini_os_uint32_t ticks);
 
 /**
  * @brief Set the name of a thread
@@ -274,7 +258,7 @@ mini_os_err_t mini_os_thread_delay_tick_until(                      mini_os_uint
  * @param[in] name Name to set
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_set_name(                              mini_os_thread_t* thread, const char* name);
+mini_os_err_t mini_os_thread_set_name(mini_os_thread_t* thread, const char* name);
 
 /**
  * @brief Get the name of a thread
@@ -283,7 +267,7 @@ mini_os_err_t mini_os_thread_set_name(                              mini_os_thre
  * @param[in] name_len Length of the name buffer
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_get_name(                              mini_os_thread_t* thread, char* name, mini_os_uint32_t* name_len);
+mini_os_err_t mini_os_thread_get_name(mini_os_thread_t* thread, char* name, mini_os_uint32_t* name_len);
 
 /**
  * @brief Set the priority of a thread
@@ -297,7 +281,7 @@ mini_os_err_t mini_os_thread_get_name(                              mini_os_thre
  *       inheritance keeps the highest requirement of the mutexes it holds until
  *       the next inheritance event, then settles on max(this priority, waiters)
  */
-mini_os_err_t mini_os_thread_set_priority(                          mini_os_thread_t* thread, mini_os_uint8_t priority);
+mini_os_err_t mini_os_thread_set_priority(mini_os_thread_t* thread, mini_os_uint8_t priority);
 
 /**
  * @brief Apply an effective priority without touching the base priority
@@ -307,7 +291,7 @@ mini_os_err_t mini_os_thread_set_priority(                          mini_os_thre
  * @note kernel API for mutex priority inheritance: base_priority is left alone
  *       so the next recompute can still derive the boost from it
  */
-mini_os_err_t mini_os_thread_priority_apply(                        mini_os_thread_t* thread, mini_os_uint8_t priority);
+mini_os_err_t mini_os_thread_priority_apply(mini_os_thread_t* thread, mini_os_uint8_t priority);
 
 /**
  * @brief Get the priority of a thread
@@ -315,7 +299,7 @@ mini_os_err_t mini_os_thread_priority_apply(                        mini_os_thre
  * @param[out] priority Buffer to store the priority in
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_get_priority(                          mini_os_thread_t* thread, mini_os_uint8_t* priority);
+mini_os_err_t mini_os_thread_get_priority(mini_os_thread_t* thread, mini_os_uint8_t* priority);
 
 /**
  * @brief Set the timeslice of a thread
@@ -339,7 +323,7 @@ mini_os_err_t mini_os_thread_get_timeslice(mini_os_thread_t* thread, mini_os_tic
  * @param[out] state Buffer to store the state in
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_get_state(mini_os_thread_t* thread, mini_os_thread_state_t *state);
+mini_os_err_t mini_os_thread_get_state(mini_os_thread_t* thread, mini_os_thread_state_t* state);
 
 /**
  * @brief Set the user data of a thread
@@ -364,7 +348,7 @@ mini_os_err_t mini_os_thread_get_user_data(mini_os_thread_t* thread, mini_os_use
  * @param[in] arg Argument to pass to the cleanup function
  * @return mini_os_err_t on success, 0 on failure
  */
-mini_os_err_t mini_os_thread_set_cleanup(mini_os_thread_t* thread, void (*cleanup)(void *), void *arg);
+mini_os_err_t mini_os_thread_set_cleanup(mini_os_thread_t* thread, void (*cleanup)(void*), void* arg);
 
 #if MINI_OS_THREAD_DETACH
 /**
@@ -394,7 +378,7 @@ mini_os_err_t mini_os_thread_detach(mini_os_thread_t* thread);
  *       Only one joiner at a time is supported, and deleting a pinned thread fails
  *       with MINI_OS_ERR_BUSY.
  */
-mini_os_err_t mini_os_thread_join(mini_os_thread_t* thread, void **thread_return, mini_os_tick_t timeout_tick);
+mini_os_err_t mini_os_thread_join(mini_os_thread_t* thread, void** thread_return, mini_os_tick_t timeout_tick);
 #endif /* MINI_OS_THREAD_DETACH */
 
 /**
@@ -404,7 +388,7 @@ mini_os_err_t mini_os_thread_join(mini_os_thread_t* thread, void **thread_return
  */
 mini_os_thread_t* mini_os_thread_get_idle_handle(void);
 
-typedef void (*idle_hook_t)(void *);
+typedef void (*idle_hook_t)(void*);
 /**
  * @brief Set the idle hook for a thread
  * @param[in] hook Idle hook function
@@ -417,7 +401,7 @@ mini_os_err_t mini_os_thread_idle_hook(idle_hook_t hook, void* param);
  * @brief Default idle thread body (runs the registered idle hook, then WFI)
  * @param[in] param argument passed to the idle hook
  */
-void mini_os_thread_idle(void*param);
+void mini_os_thread_idle(void* param);
 
 /**
  * @brief Create the idle thread (weak default; override to customize)

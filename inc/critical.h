@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file critical.h
  * @author H-000-H
@@ -24,7 +24,6 @@
  * @brief Enter critical section strict mode supported nested
  */
 #define MINI_OS_ENTER_CRITICAL_STRICT() mini_os_irq_save()
-
 
 /**
  * @brief Exit critical section strict mode supported nested

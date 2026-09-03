@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file memory.h
  * @brief Memory heap definitions and API (malloc/free model)
@@ -27,13 +27,14 @@
 
 #include <stdint.h>
 #if defined(__cplusplus)
-extern "C" {
+extern "C"
+{
 #endif
-#include "redef.h"
 #include "list.h"
+#include "redef.h"
 
 /*---------------------------------------------------------------------------------------------------------*/
-/*                                 slab build selection (mutually exclusive)                              */
+/*                                 slab build selection (mutually exclusive) */
 /*---------------------------------------------------------------------------------------------------------*/
 #if defined(CONFIG_OPEN_SLAB) && defined(CONFIG_MINI_OS_SLAB_STATIC)
 #error "CONFIG_OPEN_SLAB and CONFIG_MINI_OS_SLAB_STATIC are mutually exclusive"
@@ -43,26 +44,27 @@ extern "C" {
 #endif
 
 /*---------------------------------------------------------------------------------------------------------*/
-/*                                       memory pool macros                                                */
+/*                                       memory pool macros */
 /*---------------------------------------------------------------------------------------------------------*/
 #ifdef CONFIG_MINI_OS_MEMORY_NAME_LEN
-#define MINI_OS_MEMORY_NAME_LEN CONFIG_MINI_OS_MEMORY_NAME_LEN        /**< max pool debug name length (incl. NUL) */
+#define MINI_OS_MEMORY_NAME_LEN CONFIG_MINI_OS_MEMORY_NAME_LEN /**< max pool debug name length (incl. NUL) */
 #else
 #define MINI_OS_MEMORY_NAME_LEN 16
 #endif
 
 #ifdef CONFIG_MINI_OS_MEMORY_MAX_SEGS
-#define MINI_OS_MEMORY_MAX_SEGS CONFIG_MINI_OS_MEMORY_MAX_SEGS  /**< max registered memory segments per pool */
+#define MINI_OS_MEMORY_MAX_SEGS CONFIG_MINI_OS_MEMORY_MAX_SEGS /**< max registered memory segments per pool */
 #else
 #define MINI_OS_MEMORY_MAX_SEGS 4
 #endif
-
+// clang-format off
 /*---------------------------------------------------------------------------------------------------------*/
-/*                                       freelist block header                                             */
+/*                                       freelist block header */
 /*---------------------------------------------------------------------------------------------------------*/
 typedef struct mini_os_buffer_freelist_config mini_os_buffer_freelist_config_t;
 /**
- * @brief Free-list block header (embedded in pool memory, i.e. the prefix of an allocated block)
+ * @brief Free-list block header (embedded in pool memory, i.e. the prefix of an allocated
+ * block)
  * @note While free: size + magic + node are valid and the block is linked on the
  *       pool free list (magic == MINI_OS_MEMORY_MAGIC_FREE).
  *       While allocated: size + magic remain valid (size restores the block on
@@ -71,13 +73,14 @@ typedef struct mini_os_buffer_freelist_config mini_os_buffer_freelist_config_t;
  */
 struct mini_os_buffer_freelist_config
 {
-    mini_os_uint32_t size; /**< data bytes of this block */
-    mini_os_list_t node; /**< free-list node (doubly linked) */
-    mini_os_uint32_t magic; /**< state magic: allocated MINI_OS_MEMORY_MAGIC_ALLOC / free MINI_OS_MEMORY_MAGIC_FREE */
+    mini_os_uint32_t size;      /**< data bytes of this block */
+    mini_os_list_t   node;      /**< free-list node (doubly linked) */
+    mini_os_uint32_t magic;     /**< state magic: allocated MINI_OS_MEMORY_MAGIC_ALLOC / free
+                                        MINI_OS_MEMORY_MAGIC_FREE */
 };
 
 /*---------------------------------------------------------------------------------------------------------*/
-/*                                       memory pool descriptor                                            */
+/*                                       memory pool descriptor */
 /*---------------------------------------------------------------------------------------------------------*/
 /**
  * @brief Registered pool segment (kept sorted by length ascending)
@@ -85,7 +88,7 @@ struct mini_os_buffer_freelist_config
 struct mini_os_memory_seg
 {
     mini_os_uint8_t* base; /**< segment base */
-    mini_os_size_t len; /**< segment bytes */
+    mini_os_size_t   len;  /**< segment bytes */
 };
 
 /**
@@ -93,21 +96,23 @@ struct mini_os_memory_seg
  */
 struct mini_os_memory
 {
-    char name[MINI_OS_MEMORY_NAME_LEN]; /**< debug name */
-    mini_os_uint8_t* pool_base; /**< first segment base */
-    mini_os_size_t pool_size; /**< first segment bytes */
-    mini_os_size_t total_size; /**< total bytes of all segments */
-    mini_os_size_t free_size; /**< currently free bytes (incl. free headers; maintained by alloc/free for O(1) queries) */
-    mini_os_list_t free_list; /**< free-list head (sentinel) */
-    struct mini_os_memory_seg segs[MINI_OS_MEMORY_MAX_SEGS]; /**< segment table */
-    mini_os_uint32_t seg_count; /**< number of registered segments */
-    mini_os_atomic_uint32_t used_count; /**< currently allocated block count */
-    mini_os_atomic_uint32_t peak; /**< historical peak allocated block count */
+    char             name[MINI_OS_MEMORY_NAME_LEN];             /**< debug name */
+    mini_os_uint8_t* pool_base;                                 /**< first segment base */
+    mini_os_size_t   pool_size;                                 /**< first segment bytes */
+    mini_os_size_t   total_size;                                /**< total bytes of all segments */
+    mini_os_size_t   free_size;                                 /**< currently free bytes (incl. free headers; maintained by
+                                                                alloc/free for O(1) queries) */
+    mini_os_list_t            free_list;                        /**< free-list head (sentinel) */
+    struct mini_os_memory_seg segs[MINI_OS_MEMORY_MAX_SEGS];    /**< segment table */
+    mini_os_uint32_t          seg_count;                        /**< number of registered segments */
+    mini_os_atomic_uint32_t   used_count;                       /**< currently allocated block count */
+    mini_os_atomic_uint32_t   peak;                             /**< historical peak allocated block count */
 #ifdef CONFIG_OPEN_SLAB
-    mini_os_uint8_t* slab_base; /**< slab zone base (carved once at init, never returned; meaningless when slab_size == 0) */
-    mini_os_size_t slab_size; /**< slab zone total bytes (pages * MINI_OS_SLAB_PAGE_SIZE) */
-    mini_os_single_list_t slab_free[MINI_OS_SLAB_CLASS_COUNT]; /**< free slot list per size class (sentinels) */
-    mini_os_uint32_t slab_page_count; /**< slab pages carved out (statistics) */
+    mini_os_uint8_t* slab_base;                                 /**< slab zone base (carved once at init, never returned;
+                                                                  meaningless when slab_size == 0) */
+    mini_os_size_t        slab_size;                            /**< slab zone total bytes (pages * MINI_OS_SLAB_PAGE_SIZE) */
+    mini_os_single_list_t slab_free[MINI_OS_SLAB_CLASS_COUNT];  /**< free slot list per size class (sentinels) */
+    mini_os_uint32_t      slab_page_count;                      /**< slab pages carved out (statistics) */
 #endif
 };
 typedef struct mini_os_memory mini_os_memory_t;
@@ -117,13 +122,14 @@ typedef struct mini_os_memory mini_os_memory_t;
  */
 typedef struct mini_os_memory_config
 {
-    const char* name; /**< debug name (may be MINI_OS_NULL) */
-    void* static_mem; /**< pool memory base (8-byte aligned; caller guarantees exclusive ownership) */
-    mini_os_size_t static_len; /**< pool memory bytes */
+    const char* name;                                           /**< debug name (may be MINI_OS_NULL) */
+    void*       static_mem;                                     /**< pool memory base (8-byte aligned; caller guarantees exclusive
+                                                                     ownership) */
+    mini_os_size_t static_len;                                  /**< pool memory bytes */
 } mini_os_memory_config_t;
-
+// clang-format on
 /*---------------------------------------------------------------------------------------------------------*/
-/*                            memory pool API (malloc/free model, unified errno)                            */
+/*                            memory pool API (malloc/free model, unified errno) */
 /*---------------------------------------------------------------------------------------------------------*/
 /**
  * @brief Initialize a memory pool (the whole segment is merged into the free list)
@@ -137,7 +143,8 @@ typedef struct mini_os_memory_config
 mini_os_err_t mini_os_memory_init(mini_os_memory_t* pool, const mini_os_memory_config_t* config);
 
 /**
- * @brief De-initialize a memory pool (only clears the descriptor; memory goes back to the caller)
+ * @brief De-initialize a memory pool (only clears the descriptor; memory goes back to the
+ * caller)
  * @param[in] pool pool descriptor
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when pool is MINI_OS_NULL
  */
@@ -226,7 +233,7 @@ mini_os_uint32_t mini_os_memory_peak(const mini_os_memory_t* pool);
 mini_os_err_t mini_os_memory_reset_peak(mini_os_memory_t* pool);
 
 /*---------------------------------------------------------------------------------------------------------*/
-/*                                  global heap API (linker-script heap zone)                               */
+/*                                  global heap API (linker-script heap zone) */
 /*---------------------------------------------------------------------------------------------------------*/
 /**
  * @brief Allocate memory from the global heap (the heap zone comes from the

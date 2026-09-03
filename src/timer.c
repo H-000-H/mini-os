@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @author H-000-H
  * @file timer.c
@@ -17,23 +17,24 @@
  *    constructor itself
  */
 #include "timer.h"
+
 #include "err.h"
 #include "list.h"
+#include "memory.h"
 #include "mini_config.h"
 #include "redef.h"
-#include "memory.h"
 #include "schedule.h"
 #include "semaphore.h"
 #include "thread.h"
 
 /** @brief Dedicated timer tick wheel (MINI_OS_TICK_WHEEL must be a power of 2) */
-static mini_os_list_t   s_timer_wheel[MINI_OS_TICK_WHEEL];
+static mini_os_list_t s_timer_wheel[MINI_OS_TICK_WHEEL];
 
 /** @brief Slot of the timer wheel serviced on the next tick */
 static mini_os_uint32_t s_timer_slot = 0;
 
 /** @brief SOFT timers whose deadline hit, waiting for the service thread to run them */
-static mini_os_list_t   s_soft_pending;
+static mini_os_list_t s_soft_pending;
 
 /** @brief Binary semaphore (max 1, starts empty) used to wake the service thread */
 static mini_os_semaphore_t s_timer_sem;
@@ -41,7 +42,7 @@ static mini_os_semaphore_t s_timer_sem;
 /** @brief Timer service thread: static storage (no heap), spawned on first SOFT start */
 static mini_os_thread_t  s_timer_tcb;
 static mini_os_uint32_t  s_timer_stack[MINI_OS_TIMER_THREAD_STACK_SIZE / 4u] MINI_OS_ALIGN(8);
-static mini_os_thread_t *s_timer_thread = MINI_OS_NULL;
+static mini_os_thread_t* s_timer_thread = MINI_OS_NULL;
 
 #if MINI_OS_FIND_BY_NAME
 /** @brief Global registry of every timer, used for the by-name lookup */
@@ -60,9 +61,7 @@ MINI_OS_CONSTRUCTOR(MINI_OS_TIMER_DESTRUCTOR) void mini_os_g_timer_init(void)
     mini_os_uint32_t i;
 
     for (i = 0; i < (mini_os_uint32_t)MINI_OS_TICK_WHEEL; i++)
-    {
         mini_os_list_init(&s_timer_wheel[i]);
-    }
     s_timer_slot = 0;
     mini_os_list_init(&s_soft_pending);
     /* binary semaphore, created empty so the first take parks until a deadline */
@@ -84,10 +83,10 @@ MINI_OS_CONSTRUCTOR(MINI_OS_TIMER_DESTRUCTOR) void mini_os_g_timer_init(void)
  *       there would be revisited within the same tick and fire twice (or worse)
  * @note caller must hold interrupts disabled
  */
-static void timer_wheel_insert(mini_os_timer_t *timer)
+static void timer_wheel_insert(mini_os_timer_t* timer)
 {
     mini_os_uint32_t ticks = (mini_os_uint32_t)timer->trigger_tick;
-    mini_os_uint32_t slot  = (s_timer_slot + ticks) & MINI_OS_TICK_WHEEL_MASK;
+    mini_os_uint32_t slot = (s_timer_slot + ticks) & MINI_OS_TICK_WHEEL_MASK;
     mini_os_uint32_t shift = (mini_os_uint32_t)MINI_OS_CTZ(MINI_OS_TICK_WHEEL);
 
     timer->flag |= (mini_os_uint8_t)MINI_OS_TIMER_FLAG_ACTIVE;
@@ -112,7 +111,7 @@ static void timer_wheel_insert(mini_os_timer_t *timer)
  *       pending list, or not scheduled at all
  * @note caller must hold interrupts disabled
  */
-static void timer_unlink(mini_os_timer_t *timer)
+static void timer_unlink(mini_os_timer_t* timer)
 {
     mini_os_list_remove(&timer->list_node);
     timer->round = 0;
@@ -130,13 +129,9 @@ static void timer_unlink(mini_os_timer_t *timer)
 static mini_os_bool_t timer_selectors_valid(mini_os_uint8_t trigger_num, mini_os_uint8_t trigger_mode)
 {
     if ((trigger_num & (mini_os_uint8_t)~MINI_OS_TIMER_FLAG_PERIODIC) != 0u)
-    {
         return MINI_OS_FALSE;
-    }
     if ((trigger_mode & (mini_os_uint8_t)~MINI_OS_TIMER_FLAG_SOFT) != 0u)
-    {
         return MINI_OS_FALSE;
-    }
     return MINI_OS_TRUE;
 }
 
@@ -151,18 +146,15 @@ static mini_os_bool_t timer_selectors_valid(mini_os_uint8_t trigger_num, mini_os
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on a NULL timer/callback, a
  *         non-positive tick or an out-of-range flag
  */
-static mini_os_err_t timer_init(mini_os_timer_t *timer, const char *name, mini_os_timer_callback cb, void *arg, mini_os_tick_t tick, mini_os_uint8_t flag)
+static mini_os_err_t timer_init(mini_os_timer_t* timer, const char* name, mini_os_timer_callback cb, void* arg, mini_os_tick_t tick, mini_os_uint8_t flag)
 {
-    if (timer == MINI_OS_NULL || cb == MINI_OS_NULL || tick <= 0 ||
-        (flag & (mini_os_uint8_t)~0x03u) != 0u)
-    {
+    if (timer == MINI_OS_NULL || cb == MINI_OS_NULL || tick <= 0 || (flag & (mini_os_uint8_t)~0x03u) != 0u)
         return MINI_OS_ERR_INVAL;
-    }
     mini_os_set_name(timer->timer_name, name, sizeof(timer->timer_name));
     timer->callback = cb;
     timer->arg = arg;
     timer->trigger_tick = tick;
-    timer->flag = flag;   /* bits 0-1 only; ACTIVE is set when the timer starts */
+    timer->flag = flag; /* bits 0-1 only; ACTIVE is set when the timer starts */
     timer->round = 0;
     mini_os_list_init(&timer->list_node);
 #if MINI_OS_FIND_BY_NAME
@@ -185,26 +177,16 @@ static mini_os_err_t timer_init(mini_os_timer_t *timer, const char *name, mini_o
  *         selector pair or out of memory
  * @note the timer is armed by mini_os_timer_start(), never by the creator
  */
-mini_os_timer_t *mini_os_timer_create(          const char *name,
-                                                mini_os_timer_callback cb,
-                                                void *arg,
-                                                mini_os_tick_t trigger_tick,
-                                                mini_os_uint8_t trigger_num,
-                                                mini_os_uint8_t trigger_mode)
+mini_os_timer_t* mini_os_timer_create(const char* name, mini_os_timer_callback cb, void* arg, mini_os_tick_t trigger_tick, mini_os_uint8_t trigger_num, mini_os_uint8_t trigger_mode)
 {
-    mini_os_timer_t *timer;
-    mini_os_uint8_t flag;
+    mini_os_timer_t* timer;
+    mini_os_uint8_t  flag;
 
-    if (cb == MINI_OS_NULL || trigger_tick <= 0 ||
-        timer_selectors_valid(trigger_num, trigger_mode) == MINI_OS_FALSE)
-    {
+    if (cb == MINI_OS_NULL || trigger_tick <= 0 || timer_selectors_valid(trigger_num, trigger_mode) == MINI_OS_FALSE)
         return MINI_OS_NULL;
-    }
-    timer = (mini_os_timer_t *)mini_os_malloc(sizeof(mini_os_timer_t));
+    timer = (mini_os_timer_t*)mini_os_malloc(sizeof(mini_os_timer_t));
     if (timer == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     flag = (mini_os_uint8_t)(trigger_num | trigger_mode);
     if (timer_init(timer, name, cb, arg, trigger_tick, flag) != MINI_OS_OK)
     {
@@ -226,26 +208,15 @@ mini_os_timer_t *mini_os_timer_create(          const char *name,
  * @return timer handle on success; MINI_OS_NULL on invalid arguments or an
  *         invalid selector pair
  */
-mini_os_timer_t *mini_os_timer_create_static(   const char *name,
-                                                mini_os_timer_callback cb,
-                                                void *arg,
-                                                mini_os_tick_t trigger_tick,
-                                                mini_os_uint8_t trigger_num,
-                                                mini_os_uint8_t trigger_mode,
-                                                mini_os_timer_t *timer)
+mini_os_timer_t* mini_os_timer_create_static(const char* name, mini_os_timer_callback cb, void* arg, mini_os_tick_t trigger_tick, mini_os_uint8_t trigger_num, mini_os_uint8_t trigger_mode, mini_os_timer_t* timer)
 {
     mini_os_uint8_t flag;
 
-    if (timer == MINI_OS_NULL || cb == MINI_OS_NULL || trigger_tick <= 0 ||
-        timer_selectors_valid(trigger_num, trigger_mode) == MINI_OS_FALSE)
-    {
+    if (timer == MINI_OS_NULL || cb == MINI_OS_NULL || trigger_tick <= 0 || timer_selectors_valid(trigger_num, trigger_mode) == MINI_OS_FALSE)
         return MINI_OS_NULL;
-    }
     flag = (mini_os_uint8_t)(trigger_num | trigger_mode);
     if (timer_init(timer, name, cb, arg, trigger_tick, flag) != MINI_OS_OK)
-    {
         return MINI_OS_NULL;
-    }
     return timer;
 }
 
@@ -260,9 +231,9 @@ mini_os_timer_t *mini_os_timer_create_static(   const char *name,
  */
 static void timer_run_soft_callbacks(void)
 {
-    mini_os_timer_t *timer;
-    mini_os_list_t *node;
-    mini_os_irq_t irq;
+    mini_os_timer_t* timer;
+    mini_os_list_t*  node;
+    mini_os_irq_t    irq;
 
     for (;;)
     {
@@ -276,19 +247,13 @@ static void timer_run_soft_callbacks(void)
         timer = mini_os_container_of(node, mini_os_timer_t, list_node);
         mini_os_list_remove(node);
         if ((timer->flag & MINI_OS_TIMER_FLAG_PERIODIC) != 0u)
-        {
-            timer_wheel_insert(timer);   /* fixed-rate re-arm for the next period */
-        }
+            timer_wheel_insert(timer); /* fixed-rate re-arm for the next period */
         else
-        {
             timer->flag &= (mini_os_uint8_t)~MINI_OS_TIMER_FLAG_ACTIVE;
-        }
         mini_os_irq_restore(irq);
 
         if (timer->callback != MINI_OS_NULL)
-        {
             timer->callback(timer->arg);
-        }
     }
 }
 
@@ -302,7 +267,7 @@ static void timer_run_soft_callbacks(void)
  *       pending queue and the semaphore token are updated together in the
  *       SysTick critical section, and take's count check + park are atomic
  */
-static void mini_os_timer_thread_entry(void *param)
+static void mini_os_timer_thread_entry(void* param)
 {
     (void)param;
     for (;;)
@@ -323,16 +288,8 @@ static void mini_os_timer_thread_entry(void *param)
 static void timer_thread_ensure(void)
 {
     if (s_timer_thread != MINI_OS_NULL)
-    {
         return;
-    }
-    s_timer_thread = mini_os_thread_create_static(MINI_OS_TIMER_THREAD_NAME,
-                                                  MINI_OS_TIMER_THREAD_STACK_SIZE,
-                                                  MINI_OS_TIMER_THREAD_PRIORITY,
-                                                  mini_os_timer_thread_entry,
-                                                  MINI_OS_NULL,
-                                                  s_timer_stack,
-                                                  &s_timer_tcb);
+    s_timer_thread = mini_os_thread_create_static(MINI_OS_TIMER_THREAD_NAME, MINI_OS_TIMER_THREAD_STACK_SIZE, MINI_OS_TIMER_THREAD_PRIORITY, mini_os_timer_thread_entry, MINI_OS_NULL, s_timer_stack, &s_timer_tcb);
 }
 
 /**
@@ -345,20 +302,16 @@ static void timer_thread_ensure(void)
  * @note a SOFT timer spawns the service thread on its first start, so this is a
  *       thread/main context call for SOFT timers
  */
-mini_os_err_t mini_os_timer_start(              mini_os_timer_t *timer)
+mini_os_err_t mini_os_timer_start(mini_os_timer_t* timer)
 {
     mini_os_irq_t irq;
 
     if (timer == MINI_OS_NULL || timer->trigger_tick <= 0)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if ((timer->flag & MINI_OS_TIMER_FLAG_SOFT) != 0u)
-    {
-        timer_thread_ensure();   /* SOFT callbacks run on the service thread */
-    }
+        timer_thread_ensure(); /* SOFT callbacks run on the service thread */
     irq = mini_os_irq_save();
-    timer_unlink(timer);         /* restart cleanly if it was already running */
+    timer_unlink(timer); /* restart cleanly if it was already running */
     timer_wheel_insert(timer);
     mini_os_irq_restore(irq);
     return MINI_OS_OK;
@@ -371,14 +324,12 @@ mini_os_err_t mini_os_timer_start(              mini_os_timer_t *timer)
  * @note a callback that is already queued on the SOFT pending list is not
  *       removed: only the wheel link is dropped
  */
-mini_os_err_t mini_os_timer_stop(               mini_os_timer_t *timer)
+mini_os_err_t mini_os_timer_stop(mini_os_timer_t* timer)
 {
     mini_os_irq_t irq;
 
     if (timer == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     timer_unlink(timer);
     mini_os_irq_restore(irq);
@@ -390,14 +341,12 @@ mini_os_err_t mini_os_timer_stop(               mini_os_timer_t *timer)
  * @param[in] timer timer to delete
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when timer is MINI_OS_NULL
  */
-mini_os_err_t mini_os_timer_delete(             mini_os_timer_t *timer)
+mini_os_err_t mini_os_timer_delete(mini_os_timer_t* timer)
 {
     mini_os_irq_t irq;
 
     if (timer == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     timer_unlink(timer);
 #if MINI_OS_FIND_BY_NAME
@@ -413,14 +362,12 @@ mini_os_err_t mini_os_timer_delete(             mini_os_timer_t *timer)
  * @param[in] timer timer to delete
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when timer is MINI_OS_NULL
  */
-mini_os_err_t mini_os_timer_delete_static(      mini_os_timer_t *timer)
+mini_os_err_t mini_os_timer_delete_static(mini_os_timer_t* timer)
 {
     mini_os_irq_t irq;
 
     if (timer == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     timer_unlink(timer);
 #if MINI_OS_FIND_BY_NAME
@@ -439,23 +386,19 @@ mini_os_err_t mini_os_timer_delete_static(      mini_os_timer_t *timer)
  * @note a running timer is re-armed with the new period immediately, so the
  *       change takes effect from now on; a stopped one only stores the value
  */
-mini_os_err_t mini_os_timer_set_trigger_tick( mini_os_timer_t *timer, mini_os_tick_t trigger_tick)
+mini_os_err_t mini_os_timer_set_trigger_tick(mini_os_timer_t* timer, mini_os_tick_t trigger_tick)
 {
-    mini_os_irq_t irq;
+    mini_os_irq_t  irq;
     mini_os_bool_t was_active;
 
     if (timer == MINI_OS_NULL || trigger_tick <= 0)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     was_active = (mini_os_bool_t)((timer->flag & MINI_OS_TIMER_FLAG_ACTIVE) != 0u);
     timer_unlink(timer);
     timer->trigger_tick = trigger_tick;
     if (was_active != MINI_OS_FALSE)
-    {
-        timer_wheel_insert(timer);   /* running timer: re-arm with the new period */
-    }
+        timer_wheel_insert(timer); /* running timer: re-arm with the new period */
     mini_os_irq_restore(irq);
     return MINI_OS_OK;
 }
@@ -467,14 +410,12 @@ mini_os_err_t mini_os_timer_set_trigger_tick( mini_os_timer_t *timer, mini_os_ti
  * @param[in] arg argument passed to the new callback
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when timer or cb is MINI_OS_NULL
  */
-mini_os_err_t mini_os_timer_set_callback(     mini_os_timer_t *timer, mini_os_timer_callback cb, void *arg)
+mini_os_err_t mini_os_timer_set_callback(mini_os_timer_t* timer, mini_os_timer_callback cb, void* arg)
 {
     mini_os_irq_t irq;
 
     if (timer == MINI_OS_NULL || cb == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     timer->callback = cb;
     timer->arg = arg;
@@ -498,10 +439,10 @@ mini_os_err_t mini_os_timer_set_callback(     mini_os_timer_t *timer, mini_os_ti
  */
 void mini_os_timer_tick(void)
 {
-    mini_os_list_t *node;
-    mini_os_list_t *next;
-    mini_os_timer_t *timer;
-    mini_os_bool_t wake = MINI_OS_FALSE;
+    mini_os_list_t*  node;
+    mini_os_list_t*  next;
+    mini_os_timer_t* timer;
+    mini_os_bool_t   wake = MINI_OS_FALSE;
 
     s_timer_slot = (s_timer_slot + 1) & MINI_OS_TICK_WHEEL_MASK;
 
@@ -511,7 +452,7 @@ void mini_os_timer_tick(void)
         timer = mini_os_container_of(node, mini_os_timer_t, list_node);
         if (timer->round > 0)
         {
-            timer->round--;   /* not this revolution yet */
+            timer->round--; /* not this revolution yet */
             continue;
         }
         /* deadline reached: take the timer off the wheel */
@@ -530,17 +471,11 @@ void mini_os_timer_tick(void)
              * touched once it returns (a trailing re-arm would be a
              * use-after-free and would defeat a stop done by the callback) */
             if ((timer->flag & MINI_OS_TIMER_FLAG_PERIODIC) != 0u)
-            {
-                timer_wheel_insert(timer);   /* fixed-rate re-arm */
-            }
+                timer_wheel_insert(timer); /* fixed-rate re-arm */
             else
-            {
                 timer->flag &= (mini_os_uint8_t)~MINI_OS_TIMER_FLAG_ACTIVE;
-            }
             if (timer->callback != MINI_OS_NULL)
-            {
                 timer->callback(timer->arg);
-            }
         }
     }
 

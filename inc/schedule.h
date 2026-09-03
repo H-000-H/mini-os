@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file schedule.h
  * @brief Scheduling functions
@@ -8,20 +8,20 @@
 #define SCHEDULE_H
 #include "err.h"
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 #include "list.h"
+#include "mini_config.h"
 #include "redef.h"
 #include "thread.h"
-#include "mini_config.h"
 /**
  * @brief Convert ticks to milliseconds
  * @param[in] ticks tick count
  * @return elapsed time in ms
  * @note works for any MINI_OS_DEFAULT_SYSTICK (integer math)
  */
-#define MINI_OS_TICK_TO_MS(ticks) \
-    (((mini_os_uint32_t)(ticks) * 1000u) / MINI_OS_DEFAULT_SYSTICK)
+#define MINI_OS_TICK_TO_MS(ticks) (((mini_os_uint32_t)(ticks) * 1000u) / MINI_OS_DEFAULT_SYSTICK)
 
 /**
  * @brief Convert milliseconds to ticks
@@ -29,12 +29,13 @@ extern "C" {
  * @return tick count
  * @note works for any MINI_OS_DEFAULT_SYSTICK (integer math)
  */
-#define MINI_OS_MS_TO_TICK(ms) \
-    (((mini_os_uint32_t)(ms) * MINI_OS_DEFAULT_SYSTICK) / 1000u)
+#define MINI_OS_MS_TO_TICK(ms) (((mini_os_uint32_t)(ms) * MINI_OS_DEFAULT_SYSTICK) / 1000u)
 
-extern mini_os_uint32_t g_priority; /**< ready/running bitmap: bit i set = priority i has a ready or running thread (smaller number = higher priority) */
+extern mini_os_uint32_t g_priority; /**< ready/running bitmap: bit i set = priority i has a ready or running thread
+                                       (smaller number = higher priority) */
 
-extern mini_os_list_t g_ready_running_list[MINI_OS_PRIORITY]; /**< ready/running list head per priority (running threads stay linked) */
+extern mini_os_list_t g_ready_running_list[MINI_OS_PRIORITY]; /**< ready/running list head per priority (running
+                                                                 threads stay linked) */
 typedef struct mini_os_schedule mini_os_schedule_t;
 /**
  * @brief Scheduling structure
@@ -42,10 +43,10 @@ typedef struct mini_os_schedule mini_os_schedule_t;
  */
 struct mini_os_schedule
 {
-    mini_os_tick_t  init_tick;              /**< init tick count */
-    mini_os_tick_t  remain_tick;            /**< remaining tick count */
-    mini_os_uint8_t init_priority;          /**< initial priority */
-    mini_os_uint8_t current_priority;       /**< current priority */
+    mini_os_tick_t  init_tick;        /**< init tick count */
+    mini_os_tick_t  remain_tick;      /**< remaining tick count */
+    mini_os_uint8_t init_priority;    /**< initial priority */
+    mini_os_uint8_t current_priority; /**< current priority */
 };
 /**
  * @brief Initialize the scheduler
@@ -90,14 +91,13 @@ void mini_os_schedule_delay(mini_os_uint32_t ticks);
  * @param[in] thread The thread to add
  * @return 0 on success, negative error code on failure
  */
-mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t *thread);
+mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t* thread);
 /**
  * @brief Remove a thread from the ready/running queue
  * @param[in] thread The thread to remove
  * @return 0 on success, negative error code on failure
  */
-mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t *thread);
-
+mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t* thread);
 
 /**
  * @brief Remove a thread from the time-wheel blocked list
@@ -106,7 +106,7 @@ mini_os_err_t mini_os_remove_thread_from_ready_running_list(mini_os_thread_t *th
  * @note only unlinks the wheel node; the caller decides the next state
  *       (e.g. resume -> add to the ready/running list, delete -> free the TCB)
  */
-mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t *thread);
+mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t* thread);
 
 /**
  * @brief Park a thread in the time wheel for 'ticks' ticks (state -> BLOCKED)
@@ -115,14 +115,14 @@ mini_os_err_t mini_os_remove_thread_from_blocked_list(mini_os_thread_t *thread);
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on invalid arguments
  * @note caller must hold interrupts disabled
  */
-mini_os_err_t mini_os_wheel_insert(mini_os_thread_t *thread, mini_os_uint32_t ticks);
+mini_os_err_t mini_os_wheel_insert(mini_os_thread_t* thread, mini_os_uint32_t ticks);
 
 /**
  * @brief Remaining ticks of a wheel-parked thread
  * @param[in] thread thread to query
  * @return remaining ticks; 0 when the thread is not parked in the wheel
  */
-mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t *thread);
+mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t* thread);
 
 /**
  * @brief Park the current thread on a sync-object wait list with a timeout
@@ -141,24 +141,22 @@ mini_os_uint32_t mini_os_wheel_remain(mini_os_thread_t *thread);
  * @note consumes the caller's critical section (restores irq_level itself)
  *       so the condition check and the park stay atomic; thread context only
  */
-mini_os_err_t mini_os_sync_wait_park(mini_os_list_t *wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level);
+mini_os_err_t mini_os_sync_wait_park(mini_os_list_t* wait_list, mini_os_uint32_t wait_mask, mini_os_tick_t timeout_tick, mini_os_irq_t irq_level);
 
 MINI_OS_STATIC_INLINE mini_os_uint8_t mini_os_get_highest_priority(void)
 {
     mini_os_uint32_t group = g_priority;
 
     if (group == 0u)
-    {
         return (mini_os_uint8_t)MINI_OS_PRIORITY; /* no ready thread: out-of-range marker */
-    }
     return (mini_os_uint8_t)MINI_OS_CTZ(group);
 }
 
 #if MINI_OS_LONG_TIME
-mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t *tick, mini_os_uint32_t *overflow);
+mini_os_err_t mini_os_get_tick_long_time(mini_os_uint32_t* tick, mini_os_uint32_t* overflow);
 #endif
 
-mini_os_err_t mini_os_get_tick(mini_os_tick_t *tick);
+mini_os_err_t mini_os_get_tick(mini_os_tick_t* tick);
 
 /**
  * @brief Remaining ticks until a deadline (tick-wrap safe)

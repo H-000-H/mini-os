@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file mini_config.h
  * @brief mini-os configuration heaper - only include definitions
@@ -18,7 +18,8 @@
 
 /**
  * @details
- * - Include <config.h> and <compiler_compat.h> if they exist that identify using mini-tree's kconfig system
+ * - Include <config.h> and <compiler_compat.h> if they exist that identify using mini-tree's
+ * kconfig system
  * - couldn't include <compiler_compat.h> .if included, compiler_compat.h it has conflicts
  */
 #if __has_include(<config.h>) && __has_include(<compiler_compat.h>)
@@ -41,39 +42,39 @@
  * @brief Define CONFIG_THREADS_NAME_MAX to set the maximum length of thread names
  */
 #ifdef CONFIG_THREADS_NAME_LEN
-#define MINI_OS_THREADS_NAME_LEN CONFIG_THREADS_NAME_LEN   /**< max thread name length (incl. NUL) */
+#define MINI_OS_THREADS_NAME_LEN CONFIG_THREADS_NAME_LEN /**< max thread name length (incl. NUL) */
 #elif defined(MINI_OS_THREADS_NAME_LEN)
 /* MINI_OS_THREADS_NAME_LEN pre-defined externally , keep it */
 #else
-#define MINI_OS_THREADS_NAME_LEN 32                          /**< max thread name length (incl. NUL) */
+#define MINI_OS_THREADS_NAME_LEN 32 /**< max thread name length (incl. NUL) */
 #endif
 
 #ifdef CONFIG_QUEUE_NAME_LEN
-#define MINI_OS_QUEUE_NAME_LEN CONFIG_QUEUE_NAME_LEN    /**< max queue name length (incl. NUL) */
+#define MINI_OS_QUEUE_NAME_LEN CONFIG_QUEUE_NAME_LEN /**< max queue name length (incl. NUL) */
 #elif defined(MINI_OS_QUEUE_NAME_LEN)
 /* MINI_OS_QUEUE_NAME_LEN pre-defined externally , keep it */
 #else
-#define MINI_OS_QUEUE_NAME_LEN 32                        /**< max queue name length (incl. NUL) */
+#define MINI_OS_QUEUE_NAME_LEN 32 /**< max queue name length (incl. NUL) */
 #endif
 
 #ifdef CONFIG_SEMAPHORE_NAME_LEN
-#define MINI_OS_SEMAPHORE_NAME_LEN CONFIG_SEMAPHORE_NAME_LEN    /**< max semaphore name length (incl. NUL) */
+#define MINI_OS_SEMAPHORE_NAME_LEN CONFIG_SEMAPHORE_NAME_LEN /**< max semaphore name length (incl. NUL) */
 #elif defined(MINI_OS_SEMAPHORE_NAME_LEN)
 /* MINI_OS_SEMAPHORE_NAME_LEN pre-defined externally , keep it */
 #else
-#define MINI_OS_SEMAPHORE_NAME_LEN 32                        /**< max semaphore name length (incl. NUL) */
+#define MINI_OS_SEMAPHORE_NAME_LEN 32 /**< max semaphore name length (incl. NUL) */
 #endif
 
-#define MINI_OS_IDLE_THREAD_NAME "idle_thread"  /**< idle thread name */
+#define MINI_OS_IDLE_THREAD_NAME "idle_thread" /**< idle thread name */
 
-#define MINI_OS_IDLE_THREAD_CONSTRUCTOR 105     /**< idle thread constructor priority */
-#define MINI_OS_FIND_BY_NAME_CONSTRUCTOR 110    /**< find by name constructor priority */
-#define MINI_OS_SEMAPHORE_REGISTRY_CONSTRUCTOR 111  /**< semaphore by-name registry constructor priority */
-#define MINI_OS_MUTEX_REGISTRY_CONSTRUCTOR 112      /**< mutex by-name registry constructor priority */
-#define MINI_OS_FPU_ENABLE_CONSTRUCTOR 100      /**< FPU enable constructor priority (0-100 reserved; runs first) */
-#define MINI_OS_CPU_PROBE_CONSTRUCTOR 101       /**< CPUID probe constructor priority (fails fast before any thread runs) */
-#define MINI_OS_STACK_SENTINEL_CONSTRUCTOR 102  /**< stack sentinel constructor priority (after CPU probe, before threads) */
-#define MINI_OS_TIMER_DESTRUCTOR 113            /**< timer module self-init constructor priority */
+#define MINI_OS_IDLE_THREAD_CONSTRUCTOR 105        /**< idle thread constructor priority */
+#define MINI_OS_FIND_BY_NAME_CONSTRUCTOR 110       /**< find by name constructor priority */
+#define MINI_OS_SEMAPHORE_REGISTRY_CONSTRUCTOR 111 /**< semaphore by-name registry constructor priority */
+#define MINI_OS_MUTEX_REGISTRY_CONSTRUCTOR 112     /**< mutex by-name registry constructor priority */
+#define MINI_OS_FPU_ENABLE_CONSTRUCTOR 100         /**< FPU enable constructor priority (0-100 reserved; runs first) */
+#define MINI_OS_CPU_PROBE_CONSTRUCTOR 101          /**< CPUID probe constructor priority (fails fast before any thread runs) */
+#define MINI_OS_STACK_SENTINEL_CONSTRUCTOR 102     /**< stack sentinel constructor priority (after CPU probe, before threads) */
+#define MINI_OS_TIMER_DESTRUCTOR 113               /**< timer module self-init constructor priority */
 
 /**
  * @brief Soft-timer service thread name / priority / stack size
@@ -87,14 +88,14 @@
  *       MINI_OS_TIMER_THREAD_STACK_SIZE must be >= MINI_OS_THREAD_MIN_STACK_SIZE
  *       and a multiple of 8.
  */
-#define MINI_OS_TIMER_THREAD_NAME "timer_thread"   /**< soft-timer service thread name */
+#define MINI_OS_TIMER_THREAD_NAME "timer_thread"             /**< soft-timer service thread name */
 #define MINI_OS_TIMER_THREAD_PRIORITY (MINI_OS_PRIORITY - 2) /**< one step above idle: never shares the lowest level */
 #ifdef CONFIG_MINI_OS_TIMER_THREAD_STACK_SIZE
 #define MINI_OS_TIMER_THREAD_STACK_SIZE CONFIG_MINI_OS_TIMER_THREAD_STACK_SIZE /**< service thread stack bytes */
 #elif defined(MINI_OS_TIMER_THREAD_STACK_SIZE)
 /* MINI_OS_TIMER_THREAD_STACK_SIZE pre-defined externally , keep it */
 #else
-#define MINI_OS_TIMER_THREAD_STACK_SIZE 512        /**< service thread stack bytes */
+#define MINI_OS_TIMER_THREAD_STACK_SIZE 512 /**< service thread stack bytes */
 #endif
 /**
  * @brief Enable stack overflow detection on the system (MSP) stack
@@ -112,30 +113,30 @@
 #define MINI_OS_STACK_OVERFLOW_CHECK 0
 #endif
 
-#define MINI_OS_STACK_MAGIC 0x060815U           /**< stack/ overflow sentinel word */
+#define MINI_OS_STACK_MAGIC 0x060815U /**< stack/ overflow sentinel word */
 
 #ifdef CONFIG_MINI_EXECUTION_SLAB_CHECK_SIZE
-#define MINI_OS_SLAB_CHECK_SIZE CONFIG_MINI_EXECUTION_SLAB_CHECK_SIZE   /**< slab check size for execution (0 = disabled) */
+#define MINI_OS_SLAB_CHECK_SIZE CONFIG_MINI_EXECUTION_SLAB_CHECK_SIZE /**< slab check size for execution (0 = disabled) */
 #elif defined(MINI_OS_SLAB_CHECK_SIZE)
 /* MINI_OS_SLAB_CHECK_SIZE pre-defined externally , keep it */
 #else
-#define MINI_OS_SLAB_CHECK_SIZE 0                                   /**< slab check size for execution (0 = disabled) */
+#define MINI_OS_SLAB_CHECK_SIZE 0 /**< slab check size for execution (0 = disabled) */
 #endif
 
 #ifdef CONFIG_MINI_OS_PRIORITY
-#define MINI_OS_PRIORITY CONFIG_MINI_OS_PRIORITY   /**< number of priorities (smaller number = higher priority) */
+#define MINI_OS_PRIORITY CONFIG_MINI_OS_PRIORITY /**< number of priorities (smaller number = higher priority) */
 #elif defined(MINI_OS_PRIORITY)
 /* MINI_OS_PRIORITY pre-defined externally , keep it */
 #else
-#define MINI_OS_PRIORITY 32                          /**< number of priorities (smaller number = higher priority) */
+#define MINI_OS_PRIORITY 32 /**< number of priorities (smaller number = higher priority) */
 #endif
 
 #ifdef CONFIG_MINI_OS_THREAD_MIN_STACK_SIZE
-#define MINI_OS_THREAD_MIN_STACK_SIZE CONFIG_MINI_OS_THREAD_MIN_STACK_SIZE   /**< minimum stack size enforced at thread create */
+#define MINI_OS_THREAD_MIN_STACK_SIZE CONFIG_MINI_OS_THREAD_MIN_STACK_SIZE /**< minimum stack size enforced at thread create */
 #elif defined(MINI_OS_THREAD_MIN_STACK_SIZE)
 /* MINI_OS_THREAD_MIN_STACK_SIZE pre-defined externally , keep it */
 #else
-#define MINI_OS_THREAD_MIN_STACK_SIZE 256                                   /**< minimum stack size enforced at thread create */
+#define MINI_OS_THREAD_MIN_STACK_SIZE 256 /**< minimum stack size enforced at thread create */
 #endif
 /**
  * @brief Enable thread detach/join support (adds the per-thread corpse fields)
@@ -162,54 +163,54 @@
 
 /* Number of 32-bit ready-group words (32 priorities per word) */
 #ifdef CONFIG_MINI_OS_PRIORITY
-#define MINI_OS_PRIORITY_NUM (CONFIG_MINI_OS_PRIORITY / 32)   /**< number of 32-bit ready-group words */
+#define MINI_OS_PRIORITY_NUM (CONFIG_MINI_OS_PRIORITY / 32) /**< number of 32-bit ready-group words */
 #elif defined(MINI_OS_PRIORITY_NUM)
 /* MINI_OS_PRIORITY_NUM pre-defined externally , keep it */
 #else
-#define MINI_OS_PRIORITY_NUM (MINI_OS_PRIORITY / 32)            /**< number of 32-bit ready-group words */
+#define MINI_OS_PRIORITY_NUM (MINI_OS_PRIORITY / 32) /**< number of 32-bit ready-group words */
 #endif
 
 /* Sub-groups per priority (time-slice granularity within one priority) */
 #ifdef CONFIG_MINI_OS_SAME_PRIORITY
-#define MINI_OS_SAME_PRIORITY CONFIG_MINI_OS_SAME_PRIORITY   /**< sub-groups per priority (time-slice granularity) */
+#define MINI_OS_SAME_PRIORITY CONFIG_MINI_OS_SAME_PRIORITY /**< sub-groups per priority (time-slice granularity) */
 #elif defined(MINI_OS_SAME_PRIORITY)
 /* MINI_OS_SAME_PRIORITY pre-defined externally , keep it */
 #else
-#define MINI_OS_SAME_PRIORITY (MINI_OS_PRIORITY / 8)            /**< sub-groups per priority (time-slice granularity) */
+#define MINI_OS_SAME_PRIORITY (MINI_OS_PRIORITY / 8) /**< sub-groups per priority (time-slice granularity) */
 #endif
 
 /* Architecture selector. Numeric so it can be used in preprocessor #if
  * comparisons (e.g. port.S selects per-core constants). */
-#define MINI_OS_ARCH_M0 0    /**< Cortex-M0 architecture id */
-#define MINI_OS_ARCH_M3 1    /**< Cortex-M3 architecture id */
-#define MINI_OS_ARCH_M4 2    /**< Cortex-M4 architecture id */
-#define MINI_OS_ARCH_M7 3    /**< Cortex-M7 architecture id */
+#define MINI_OS_ARCH_M0 0 /**< Cortex-M0 architecture id */
+#define MINI_OS_ARCH_M3 1 /**< Cortex-M3 architecture id */
+#define MINI_OS_ARCH_M4 2 /**< Cortex-M4 architecture id */
+#define MINI_OS_ARCH_M7 3 /**< Cortex-M7 architecture id */
 
 #ifdef CONFIG_ARCH
-#define MINI_OS_ARCH CONFIG_ARCH    /**< selected architecture id */
+#define MINI_OS_ARCH CONFIG_ARCH /**< selected architecture id */
 #elif defined(MINI_OS_ARCH)
 /* MINI_OS_ARCH pre-defined externally , keep it */
 #else
-#define MINI_OS_ARCH MINI_OS_ARCH_M4    /**< default architecture id (Cortex-M4) */
+#define MINI_OS_ARCH MINI_OS_ARCH_M4 /**< default architecture id (Cortex-M4) */
 #endif
 
 /* Per-architecture constants derived from MINI_OS_ARCH (used by port.S) */
 #if MINI_OS_ARCH == MINI_OS_ARCH_M0
-#define MINI_OS_NVIC_PRIO_BITS 2        /**< Cortex-M0/M0+: 2 NVIC priority bits */
-#define MINI_OS_ARCH_HAS_FPU 0          /**< Cortex-M0/M0+: no FPU */
+#define MINI_OS_NVIC_PRIO_BITS 2 /**< Cortex-M0/M0+: 2 NVIC priority bits */
+#define MINI_OS_ARCH_HAS_FPU 0   /**< Cortex-M0/M0+: no FPU */
 #elif MINI_OS_ARCH == MINI_OS_ARCH_M3
-#define MINI_OS_NVIC_PRIO_BITS 4        /**< Cortex-M3: 4 NVIC priority bits */
-#define MINI_OS_ARCH_HAS_FPU 0          /**< Cortex-M3: no FPU */
+#define MINI_OS_NVIC_PRIO_BITS 4 /**< Cortex-M3: 4 NVIC priority bits */
+#define MINI_OS_ARCH_HAS_FPU 0   /**< Cortex-M3: no FPU */
 #elif MINI_OS_ARCH == MINI_OS_ARCH_M4
-#define MINI_OS_NVIC_PRIO_BITS 4        /**< Cortex-M4: 4 NVIC priority bits */
-#define MINI_OS_ARCH_HAS_FPU 1          /**< Cortex-M4: optional single-precision FPU */
+#define MINI_OS_NVIC_PRIO_BITS 4 /**< Cortex-M4: 4 NVIC priority bits */
+#define MINI_OS_ARCH_HAS_FPU 1   /**< Cortex-M4: optional single-precision FPU */
 #elif MINI_OS_ARCH == MINI_OS_ARCH_M7
-#define MINI_OS_NVIC_PRIO_BITS 4        /**< Cortex-M7: 4 NVIC priority bits */
-#define MINI_OS_ARCH_HAS_FPU 1          /**< Cortex-M7: optional single/double-precision FPU */
+#define MINI_OS_NVIC_PRIO_BITS 4          /**< Cortex-M7: 4 NVIC priority bits */
+#define MINI_OS_ARCH_HAS_FPU 1            /**< Cortex-M7: optional single/double-precision FPU */
 /* L1 cache maintenance flags for mini_os_dcache_ops (bitmask) */
-#define MINI_OS_CACHE_FLUSH      (1 << 0)   /**< clean: write dirty lines back to memory */
-#define MINI_OS_CACHE_INVALIDATE (1 << 1)   /**< invalidate: drop the cached copies */
-#define MINI_OS_CACHE_LINESIZE   32U        /**< Cortex-M7 L1 cache line size in bytes */
+#define MINI_OS_CACHE_FLUSH (1 << 0)      /**< clean: write dirty lines back to memory */
+#define MINI_OS_CACHE_INVALIDATE (1 << 1) /**< invalidate: drop the cached copies */
+#define MINI_OS_CACHE_LINESIZE 32U        /**< Cortex-M7 L1 cache line size in bytes */
 #else
 #error "unsupported MINI_OS_ARCH value"
 #endif
@@ -221,7 +222,7 @@
  * lower) can still preempt the kernel (FreeRTOS configMAX_SYSCALL_INTERRUPT_PRIORITY
  * style). Cortex-M0 has no BASEPRI hardware and always uses PRIMASK. */
 #ifdef CONFIG_MINI_OS_IRQ_MAX_SYSCALL_PRIORITY
-#define MINI_OS_IRQ_MAX_SYSCALL_PRIORITY CONFIG_MINI_OS_IRQ_MAX_SYSCALL_PRIORITY   /**< BASEPRI threshold (NVIC priority number) */
+#define MINI_OS_IRQ_MAX_SYSCALL_PRIORITY CONFIG_MINI_OS_IRQ_MAX_SYSCALL_PRIORITY /**< BASEPRI threshold (NVIC priority number) */
 #elif defined(MINI_OS_IRQ_MAX_SYSCALL_PRIORITY)
 /* MINI_OS_IRQ_MAX_SYSCALL_PRIORITY pre-defined externally , keep it */
 #else
@@ -238,15 +239,14 @@
 #if MINI_OS_IRQ_MAX_SYSCALL_PRIORITY >= (1 << MINI_OS_NVIC_PRIO_BITS)
 #error "MINI_OS_IRQ_MAX_SYSCALL_PRIORITY exceeds the NVIC priority range"
 #endif
-#define MINI_OS_IRQ_USE_BASEPRI 1   /**< critical sections mask via BASEPRI threshold */
+#define MINI_OS_IRQ_USE_BASEPRI 1 /**< critical sections mask via BASEPRI threshold */
 
 /* BASEPRI stores the threshold in the upper MINI_OS_NVIC_PRIO_BITS bits of its
  * byte-wide register field, shift the priority number into register position.
  * Used by both redef.h callers and the port.S implementation. */
-#define MINI_OS_IRQ_BASEPRI_THRESHOLD \
-    ((MINI_OS_IRQ_MAX_SYSCALL_PRIORITY) << (8U - MINI_OS_NVIC_PRIO_BITS))   /**< BASEPRI register value for the threshold */
+#define MINI_OS_IRQ_BASEPRI_THRESHOLD ((MINI_OS_IRQ_MAX_SYSCALL_PRIORITY) << (8U - MINI_OS_NVIC_PRIO_BITS)) /**< BASEPRI register value for the threshold */
 #else
-#define MINI_OS_IRQ_USE_BASEPRI 0   /**< critical sections mask everything via PRIMASK */
+#define MINI_OS_IRQ_USE_BASEPRI 0 /**< critical sections mask everything via PRIMASK */
 #endif
 
 /**
@@ -269,29 +269,28 @@
 /* Default idle stack size for threads. Must stay >= MINI_OS_THREAD_MIN_STACK_SIZE,
  * otherwise the idle thread creation is rejected by the stack size check */
 #ifdef CONFIG_MINI_OS_DEFAULT_IDLE_STACK_SIZE
-#define MINI_OS_DEFAULT_IDLE_STACK_SIZE CONFIG_MINI_OS_DEFAULT_IDLE_STACK_SIZE   /**< default idle stack size in bytes */
+#define MINI_OS_DEFAULT_IDLE_STACK_SIZE CONFIG_MINI_OS_DEFAULT_IDLE_STACK_SIZE /**< default idle stack size in bytes */
 #elif defined(MINI_OS_DEFAULT_IDLE_STACK_SIZE)
 /* MINI_OS_DEFAULT_IDLE_STACK_SIZE pre-defined externally , keep it */
 #else
-#define MINI_OS_DEFAULT_IDLE_STACK_SIZE 256                                     /**< default idle stack size in bytes */
+#define MINI_OS_DEFAULT_IDLE_STACK_SIZE 256 /**< default idle stack size in bytes */
 #endif
 
-
-#define MINI_OS_CONTROL_REGISTER_MSP_PRIVILEGE 0U   /**< CONTROL: MSP, privileged thread mode */
-#define MINI_OS_CONTROL_REGISTER_MSP_USER 1U        /**< CONTROL: MSP, unprivileged thread mode */
-#define MINI_OS_CONTROL_REGISTER_PSP_PRIVILEGE 2U   /**< CONTROL: PSP, privileged thread mode */
-#define MINI_OS_CONTROL_REGISTER_PSP_USER 3U        /**< CONTROL: PSP, unprivileged thread mode */
-#define MINI_OS_NONE_THREAD_TO_RESTORE 0U           /**< marker: no thread to restore on first switch */
+#define MINI_OS_CONTROL_REGISTER_MSP_PRIVILEGE 0U /**< CONTROL: MSP, privileged thread mode */
+#define MINI_OS_CONTROL_REGISTER_MSP_USER 1U      /**< CONTROL: MSP, unprivileged thread mode */
+#define MINI_OS_CONTROL_REGISTER_PSP_PRIVILEGE 2U /**< CONTROL: PSP, privileged thread mode */
+#define MINI_OS_CONTROL_REGISTER_PSP_USER 3U      /**< CONTROL: PSP, unprivileged thread mode */
+#define MINI_OS_NONE_THREAD_TO_RESTORE 0U         /**< marker: no thread to restore on first switch */
 
 #ifdef CONFIG_MINI_OS_TICK_WHEEL
-#define MINI_OS_TICK_WHEEL CONFIG_MINI_OS_TICK_WHEEL    /**< tick wheel size (power of 2, number of slots) */
+#define MINI_OS_TICK_WHEEL CONFIG_MINI_OS_TICK_WHEEL /**< tick wheel size (power of 2, number of slots) */
 #elif defined(MINI_OS_TICK_WHEEL)
 /* MINI_OS_TICK_WHEEL pre-defined externally , keep it */
 #else
-#define MINI_OS_TICK_WHEEL 32U                              /**< tick wheel size (power of 2, number of slots) */
+#define MINI_OS_TICK_WHEEL 32U /**< tick wheel size (power of 2, number of slots) */
 #endif
 
-#define MINI_OS_TICK_WHEEL_MASK (MINI_OS_TICK_WHEEL - 1)    /**< tick wheel slot mask */
+#define MINI_OS_TICK_WHEEL_MASK (MINI_OS_TICK_WHEEL - 1) /**< tick wheel slot mask */
 
 /**
  * @brief Enable 64-bit long tick counting (adds a 32-bit wrap-around counter)
@@ -300,11 +299,11 @@
  *       mini_os_get_tick_long_time() is not compiled.
  */
 #ifdef CONFIG_MINI_OS_LONG_TIME
-#define MINI_OS_LONG_TIME CONFIG_MINI_OS_LONG_TIME   /**< enable 64-bit long tick counting (overflow counter) */
+#define MINI_OS_LONG_TIME CONFIG_MINI_OS_LONG_TIME /**< enable 64-bit long tick counting (overflow counter) */
 #elif defined(MINI_OS_LONG_TIME)
 /* MINI_OS_LONG_TIME pre-defined externally , keep it */
 #else
-#define MINI_OS_LONG_TIME 0                             /**< 0 = 32-bit tick counter only */
+#define MINI_OS_LONG_TIME 0 /**< 0 = 32-bit tick counter only */
 #endif
 
 /**
@@ -312,11 +311,11 @@
  * @note value is the tick frequency, not a period; used by the tick/ms conversion macros
  */
 #ifdef CONFIG_MINI_OS_DEFAULT_SYSTICK
-#define MINI_OS_DEFAULT_SYSTICK CONFIG_MINI_OS_DEFAULT_SYSTICK    /**< OS tick rate in Hz */
+#define MINI_OS_DEFAULT_SYSTICK CONFIG_MINI_OS_DEFAULT_SYSTICK /**< OS tick rate in Hz */
 #elif defined(MINI_OS_DEFAULT_SYSTICK)
 /* MINI_OS_DEFAULT_SYSTICK pre-defined externally , keep it */
 #else
-#define MINI_OS_DEFAULT_SYSTICK 1000U                                /**< OS tick rate in Hz */
+#define MINI_OS_DEFAULT_SYSTICK 1000U /**< OS tick rate in Hz */
 #endif
 
 /**
@@ -324,11 +323,11 @@
  * @note reload = (MINI_OS_CPU_CLOCK_HZ / 1000) * ticks_per_ms - 1
  */
 #ifdef CONFIG_MINI_OS_CPU_CLOCK_HZ
-#define MINI_OS_CPU_CLOCK_HZ CONFIG_MINI_OS_CPU_CLOCK_HZ    /**< CPU clock in Hz */
+#define MINI_OS_CPU_CLOCK_HZ CONFIG_MINI_OS_CPU_CLOCK_HZ /**< CPU clock in Hz */
 #elif defined(MINI_OS_CPU_CLOCK_HZ)
 /* MINI_OS_CPU_CLOCK_HZ pre-defined externally , keep it */
 #else
-#define MINI_OS_CPU_CLOCK_HZ 72000000U                         /**< CPU clock in Hz */
+#define MINI_OS_CPU_CLOCK_HZ 72000000U /**< CPU clock in Hz */
 #endif
 
 /**
@@ -371,11 +370,11 @@
  *       out of a wait cycle (A waits B, B waits A) instead of looping forever
  */
 #ifdef CONFIG_MINI_OS_MUTEX_PI_CHAIN_MAX
-#define MINI_OS_MUTEX_PI_CHAIN_MAX CONFIG_MINI_OS_MUTEX_PI_CHAIN_MAX   /**< inheritance chain depth cap */
+#define MINI_OS_MUTEX_PI_CHAIN_MAX CONFIG_MINI_OS_MUTEX_PI_CHAIN_MAX /**< inheritance chain depth cap */
 #elif defined(MINI_OS_MUTEX_PI_CHAIN_MAX)
 /* MINI_OS_MUTEX_PI_CHAIN_MAX pre-defined externally , keep it */
 #else
-#define MINI_OS_MUTEX_PI_CHAIN_MAX 8u                          /**< inheritance chain depth cap */
+#define MINI_OS_MUTEX_PI_CHAIN_MAX 8u /**< inheritance chain depth cap */
 #endif
 
 /**

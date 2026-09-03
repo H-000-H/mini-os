@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file queue.h
  * @brief queue implementation (fixed-size messages, FIFO, blocking send/receive)
@@ -7,12 +7,13 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 #if defined(__cplusplus)
-extern "C" {
+extern "C"
+{
 #endif
 #include "list.h"
-#include "redef.h"
 #include "mini_config.h"
-
+#include "redef.h"
+// clang-format off
 typedef struct mini_os_queue mini_os_queue_t;
 
 /**
@@ -23,18 +24,18 @@ typedef struct mini_os_queue mini_os_queue_t;
  */
 struct mini_os_queue
 {
-    char name[MINI_OS_QUEUE_NAME_LEN];    /**< queue name */
-    mini_os_uint16_t msg_size;    /**< message payload size in bytes */
-    mini_os_uint8_t max_depth;    /**< queue max depth (the maximum number of messages) */
-    mini_os_uint8_t depth;        /**< queue depth (the number of messages in the queue) */
-    mini_os_uint8_t write_idx;    /**< next slot index to write (wraps at max_depth) */
-    mini_os_uint8_t read_idx;     /**< next slot index to read (wraps at max_depth) */
-    mini_os_bool_t heap_owned;    /**< MINI_OS_TRUE when the descriptor and pool came from the heap */
-    void* msg_base;               /**< message pool base (max_depth * msg_size bytes) */
-    mini_os_list_t send_list;     /**< threads blocked while the queue is full (waiting to send) */
-    mini_os_list_t receive_list;  /**< threads blocked while the queue is empty (waiting to receive) */
+    char             name[MINI_OS_QUEUE_NAME_LEN]; /**< queue name */
+    mini_os_uint16_t msg_size;                     /**< message payload size in bytes */
+    mini_os_uint8_t  max_depth;                    /**< queue max depth (the maximum number of messages) */
+    mini_os_uint8_t  depth;                        /**< queue depth (the number of messages in the queue) */
+    mini_os_uint8_t  write_idx;                    /**< next slot index to write (wraps at max_depth) */
+    mini_os_uint8_t  read_idx;                     /**< next slot index to read (wraps at max_depth) */
+    mini_os_bool_t   heap_owned;                   /**< MINI_OS_TRUE when the descriptor and pool came from the heap */
+    void*            msg_base;                     /**< message pool base (max_depth * msg_size bytes) */
+    mini_os_list_t   send_list;                    /**< threads blocked while the queue is full (waiting to send) */
+    mini_os_list_t   receive_list;                 /**< threads blocked while the queue is empty (waiting to receive) */
 };
-
+// clang-format on
 /**
  * @brief Create a queue (descriptor and message pool from the heap)
  * @param[in] name queue name (MINI_OS_NULL for an empty name)
@@ -42,9 +43,7 @@ struct mini_os_queue
  * @param[in] depth maximum number of messages (> 0)
  * @return queue handle on success; MINI_OS_NULL on invalid arguments or out of memory
  */
-mini_os_queue_t* mini_os_queue_create(const char* name,
-                                      mini_os_uint16_t msg_size,
-                                      mini_os_uint8_t depth);
+mini_os_queue_t* mini_os_queue_create(const char* name, mini_os_uint16_t msg_size, mini_os_uint8_t depth);
 
 /**
  * @brief Create a queue over caller-provided static storage
@@ -57,12 +56,7 @@ mini_os_queue_t* mini_os_queue_create(const char* name,
  * @return queue handle on success; MINI_OS_NULL on invalid arguments or a too-small buffer
  * @note msg_buffer must remain valid for the queue lifetime
  */
-mini_os_queue_t* mini_os_queue_create_static(const char* name,
-                                             mini_os_uint16_t msg_size,
-                                             mini_os_uint8_t depth,
-                                             mini_os_queue_t* queue_buffer,
-                                             void* msg_buffer,
-                                             mini_os_size_t buffer_size);
+mini_os_queue_t* mini_os_queue_create_static(const char* name, mini_os_uint16_t msg_size, mini_os_uint8_t depth, mini_os_queue_t* queue_buffer, void* msg_buffer, mini_os_size_t buffer_size);
 
 /**
  * @brief Delete a heap-created queue and free its memory

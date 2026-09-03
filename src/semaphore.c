@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @brief semaphore implementation
  * @file semaphore.c
@@ -8,6 +8,7 @@
  *       binary semaphore can satisfy several parked takers in a row
  */
 #include "semaphore.h"
+
 #include "err.h"
 #include "list.h"
 #include "memory.h"
@@ -25,10 +26,8 @@ static mini_os_list_t g_semaphore_list;
  * @note the list head becomes a self-referencing sentinel, so semaphores can be
  *       linked before the scheduler is up
  */
-MINI_OS_CONSTRUCTOR(MINI_OS_SEMAPHORE_REGISTRY_CONSTRUCTOR) void mini_os_semaphore_registry_init(void)
-{
-    mini_os_list_init(&g_semaphore_list);
-}
+MINI_OS_CONSTRUCTOR(MINI_OS_SEMAPHORE_REGISTRY_CONSTRUCTOR)
+void mini_os_semaphore_registry_init(void) { mini_os_list_init(&g_semaphore_list); }
 #endif
 
 /**
@@ -45,9 +44,7 @@ static mini_os_bool_t mini_os_semaphore_wake_one(mini_os_semaphore_t* semaphore)
     mini_os_thread_t* thread;
 
     if (mini_os_list_is_empty(&semaphore->wait_list))
-    {
         return MINI_OS_FALSE;
-    }
     thread = mini_os_container_of(semaphore->wait_list.next, mini_os_thread_t, wait_node);
     mini_os_list_remove(&thread->wait_node);
     thread->wait_list = MINI_OS_NULL;
@@ -71,16 +68,10 @@ static mini_os_bool_t mini_os_semaphore_wake_one(mini_os_semaphore_t* semaphore)
  * @return MINI_OS_OK on success, MINI_OS_ERR_INVAL on a NULL semaphore,
  *         max_count == 0 or count > max_count
  */
-static mini_os_err_t mini_os_semaphore_init(mini_os_semaphore_t* semaphore,
-                                            mini_os_uint16_t max_count,
-                                            mini_os_uint16_t count,
-                                            mini_os_bool_t is_static,
-                                            const char* name)
+static mini_os_err_t mini_os_semaphore_init(mini_os_semaphore_t* semaphore, mini_os_uint16_t max_count, mini_os_uint16_t count, mini_os_bool_t is_static, const char* name)
 {
     if (semaphore == MINI_OS_NULL || max_count == 0u || count > max_count)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     mini_os_set_name(semaphore->name, name, MINI_OS_SEMAPHORE_NAME_LEN);
     semaphore->max_count = max_count;
@@ -112,12 +103,10 @@ mini_os_semaphore_t* mini_os_semaphore_create(const char* name, mini_os_uint16_t
     mini_os_semaphore_t* semaphore = (mini_os_semaphore_t*)mini_os_malloc(sizeof(mini_os_semaphore_t));
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_semaphore_init(semaphore, max_count, count, MINI_OS_FALSE, name) != MINI_OS_OK)
     {
-        (void)mini_os_free(semaphore);  /* init failed: give the block back, no leak */
+        (void)mini_os_free(semaphore); /* init failed: give the block back, no leak */
         return MINI_OS_NULL;
     }
     return semaphore;
@@ -133,9 +122,7 @@ mini_os_semaphore_t* mini_os_binary_semaphore_create(const char* name)
     mini_os_semaphore_t* semaphore = (mini_os_semaphore_t*)mini_os_malloc(sizeof(mini_os_semaphore_t));
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_semaphore_init(semaphore, 1u, 1u, MINI_OS_FALSE, name) != MINI_OS_OK)
     {
         (void)mini_os_free(semaphore);
@@ -152,19 +139,12 @@ mini_os_semaphore_t* mini_os_binary_semaphore_create(const char* name)
  * @param[in] semaphore storage for the semaphore descriptor
  * @return semaphore handle on success; MINI_OS_NULL on failure
  */
-mini_os_semaphore_t* mini_os_semaphore_create_static(const char* name,
-                                                     mini_os_uint16_t max_count,
-                                                     mini_os_uint16_t count,
-                                                     mini_os_semaphore_t* semaphore)
+mini_os_semaphore_t* mini_os_semaphore_create_static(const char* name, mini_os_uint16_t max_count, mini_os_uint16_t count, mini_os_semaphore_t* semaphore)
 {
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_semaphore_init(semaphore, max_count, count, MINI_OS_TRUE, name) != MINI_OS_OK)
-    {
         return MINI_OS_NULL;
-    }
     return semaphore;
 }
 
@@ -177,13 +157,9 @@ mini_os_semaphore_t* mini_os_semaphore_create_static(const char* name,
 mini_os_semaphore_t* mini_os_binary_semaphore_create_static(const char* name, mini_os_semaphore_t* semaphore)
 {
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_semaphore_init(semaphore, 1u, 1u, MINI_OS_TRUE, name) != MINI_OS_OK)
-    {
         return MINI_OS_NULL;
-    }
     return semaphore;
 }
 
@@ -203,9 +179,7 @@ mini_os_err_t mini_os_semaphore_to_binary(mini_os_semaphore_t* semaphore)
     mini_os_irq_t irq;
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     /* Only a saturated semaphore can be collapsed: count == max_count means
@@ -242,14 +216,12 @@ mini_os_err_t mini_os_semaphore_to_counting(mini_os_semaphore_t* semaphore, mini
     mini_os_irq_t irq;
 
     if (semaphore == MINI_OS_NULL || max_count < 2u)
-    {
-        return MINI_OS_ERR_INVAL;  
-    }
+        return MINI_OS_ERR_INVAL;
 
     irq = mini_os_irq_save();
     if (semaphore->max_count != 1u)
     {
-        ret = MINI_OS_ERR_NOTSUPP;  
+        ret = MINI_OS_ERR_NOTSUPP;
     }
     else
     {
@@ -276,19 +248,15 @@ mini_os_err_t mini_os_semaphore_delete(mini_os_semaphore_t* semaphore)
     mini_os_irq_t irq;
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if (semaphore->is_static != MINI_OS_FALSE)
-    {
-        return MINI_OS_ERR_NOTSUPP;     /* caller-provided storage: use delete_static */
-    }
+        return MINI_OS_ERR_NOTSUPP; /* caller-provided storage: use delete_static */
 
     irq = mini_os_irq_save();
     if (!mini_os_list_is_empty(&semaphore->wait_list))
     {
         mini_os_irq_restore(irq);
-        return MINI_OS_ERR_BUSY;        /* threads still parked: waking them is the caller's job */
+        return MINI_OS_ERR_BUSY; /* threads still parked: waking them is the caller's job */
     }
 #if MINI_OS_FIND_BY_NAME
     mini_os_list_remove(&semaphore->g_list_node);
@@ -311,13 +279,9 @@ mini_os_err_t mini_os_semaphore_delete_static(mini_os_semaphore_t* semaphore)
     mini_os_irq_t irq;
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if (semaphore->is_static == MINI_OS_FALSE)
-    {
-        return MINI_OS_ERR_NOTSUPP;     /* heap owned: use mini_os_semaphore_delete */
-    }
+        return MINI_OS_ERR_NOTSUPP; /* heap owned: use mini_os_semaphore_delete */
 
     irq = mini_os_irq_save();
     if (!mini_os_list_is_empty(&semaphore->wait_list))
@@ -345,9 +309,7 @@ mini_os_err_t mini_os_semaphore_get_count(mini_os_semaphore_t* semaphore, mini_o
     mini_os_irq_t irq;
 
     if (semaphore == MINI_OS_NULL || count == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     *count = semaphore->count;
@@ -376,14 +338,12 @@ mini_os_err_t mini_os_semaphore_take(mini_os_semaphore_t* semaphore, mini_os_tic
     mini_os_irq_t irq;
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     if (semaphore->count > 0u)
     {
-        semaphore->count--;             
+        semaphore->count--;
         mini_os_irq_restore(irq);
         return MINI_OS_OK;
     }
@@ -404,9 +364,7 @@ mini_os_err_t mini_os_semaphore_take(mini_os_semaphore_t* semaphore, mini_os_tic
      * again here  */
     parked = mini_os_sync_wait_park(&semaphore->wait_list, 0u, timeout_tick, irq);
     if (parked == MINI_OS_OK)
-    {
         return MINI_OS_OK;
-    }
     return (parked == MINI_OS_ERR_TIMEOUT) ? MINI_OS_ERR_TIMEOUT : parked;
 }
 
@@ -416,10 +374,7 @@ mini_os_err_t mini_os_semaphore_take(mini_os_semaphore_t* semaphore, mini_os_tic
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL when semaphore is MINI_OS_NULL;
  *         MINI_OS_ERR_AGAIN when the count is 0
  */
-mini_os_err_t mini_os_semaphore_try_take(mini_os_semaphore_t* semaphore)
-{
-    return mini_os_semaphore_take(semaphore, 0);   
-}
+mini_os_err_t mini_os_semaphore_try_take(mini_os_semaphore_t* semaphore) { return mini_os_semaphore_take(semaphore, 0); }
 
 /**
  * @brief Give a semaphore (hand the unit to the oldest waiter, else count++)
@@ -432,12 +387,10 @@ mini_os_err_t mini_os_semaphore_try_take(mini_os_semaphore_t* semaphore)
 mini_os_err_t mini_os_semaphore_give(mini_os_semaphore_t* semaphore)
 {
     mini_os_bool_t woken;
-    mini_os_irq_t irq;
+    mini_os_irq_t  irq;
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     woken = mini_os_semaphore_wake_one(semaphore);
@@ -451,7 +404,7 @@ mini_os_err_t mini_os_semaphore_give(mini_os_semaphore_t* semaphore)
     if (semaphore->count >= semaphore->max_count)
     {
         mini_os_irq_restore(irq);
-        return MINI_OS_ERR_BUSY;    /* saturated: the semaphore already holds max_count units */
+        return MINI_OS_ERR_BUSY; /* saturated: the semaphore already holds max_count units */
     }
     semaphore->count++;
     mini_os_irq_restore(irq);
@@ -469,19 +422,17 @@ mini_os_err_t mini_os_semaphore_give(mini_os_semaphore_t* semaphore)
 mini_os_err_t mini_os_semaphore_give_isr(mini_os_semaphore_t* semaphore)
 {
     mini_os_bool_t woken;
-    mini_os_irq_t irq;
+    mini_os_irq_t  irq;
 
     if (semaphore == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     woken = mini_os_semaphore_wake_one(semaphore);
     if (woken != MINI_OS_FALSE)
     {
         mini_os_irq_restore(irq);
-        return MINI_OS_OK;          /* unit handed straight to the oldest waiter */
+        return MINI_OS_OK; /* unit handed straight to the oldest waiter */
     }
     if (semaphore->count >= semaphore->max_count)
     {
@@ -505,17 +456,13 @@ mini_os_semaphore_t* mini_os_get_semaphore_by_name(const char* name)
     mini_os_list_t* node;
 
     if (name == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     for (node = g_semaphore_list.next; node != &g_semaphore_list; node = node->next)
     {
         mini_os_semaphore_t* semaphore = mini_os_container_of(node, mini_os_semaphore_t, g_list_node);
 
         if (MINI_OS_STRCMP(semaphore->name, name) == 0)
-        {
             return semaphore;
-        }
     }
     return MINI_OS_NULL;
 }

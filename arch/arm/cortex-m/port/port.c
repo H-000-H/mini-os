@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file port.c
  * @brief Cortex-M port C side: SVC callback storage and dispatch.
@@ -6,24 +6,25 @@
  * @author H-000-H
  */
 #include "port.h"
-#include "redef.h"
+
 #include "err.h"
 #include "mini_config.h"
+#include "redef.h"
 
 /** @brief Installed SVC callback (shared with port.S, which loads it directly) */
 svc_call_back g_svc_cb = NULL;
 /** @brief Argument handed back to the SVC callback (shared with port.S) */
-void *g_svc_arg = NULL;
+void* g_svc_arg = NULL;
 
 /** @brief Cortex-M CPUID register (SCB) and its part-number field layout */
-#define MINI_OS_SCB_CPUID 0xE000ED00U          /**< CPUID Base Register */
-#define MINI_OS_CPUID_PARTNO_SHIFT 4           /**< part number field start bit */
-#define MINI_OS_CPUID_PARTNO_MASK 0xFFFU       /**< part number field mask (bits[15:4]) */
-#define MINI_OS_CPUID_PARTNO_M0 0xC20U         /**< Cortex-M0 part number */
-#define MINI_OS_CPUID_PARTNO_M0P 0xC60U        /**< Cortex-M0+ part number (ARMv6-M compatible) */
-#define MINI_OS_CPUID_PARTNO_M3 0xC23U         /**< Cortex-M3 part number */
-#define MINI_OS_CPUID_PARTNO_M4 0xC24U         /**< Cortex-M4 part number */
-#define MINI_OS_CPUID_PARTNO_M7 0xC27U         /**< Cortex-M7 part number */
+#define MINI_OS_SCB_CPUID 0xE000ED00U    /**< CPUID Base Register */
+#define MINI_OS_CPUID_PARTNO_SHIFT 4     /**< part number field start bit */
+#define MINI_OS_CPUID_PARTNO_MASK 0xFFFU /**< part number field mask (bits[15:4]) */
+#define MINI_OS_CPUID_PARTNO_M0 0xC20U   /**< Cortex-M0 part number */
+#define MINI_OS_CPUID_PARTNO_M0P 0xC60U  /**< Cortex-M0+ part number (ARMv6-M compatible) */
+#define MINI_OS_CPUID_PARTNO_M3 0xC23U   /**< Cortex-M3 part number */
+#define MINI_OS_CPUID_PARTNO_M4 0xC24U   /**< Cortex-M4 part number */
+#define MINI_OS_CPUID_PARTNO_M7 0xC27U   /**< Cortex-M7 part number */
 
 #if MINI_OS_ARCH_HAS_FPU && MINI_OS_USE_FPU
 #define MINI_OS_CPACR 0xE000ED88U           /**< Coprocessor Access Control Register */
@@ -35,10 +36,12 @@ void *g_svc_arg = NULL;
 MINI_OS_CONSTRUCTOR(MINI_OS_FPU_ENABLE_CONSTRUCTOR)
 static void mini_os_fpu_enable_ctor(void)
 {
-    volatile mini_os_uint32_t *cpacr = (volatile mini_os_uint32_t *)MINI_OS_CPACR;
+    volatile mini_os_uint32_t* cpacr = (volatile mini_os_uint32_t*)MINI_OS_CPACR;
 
     *cpacr |= MINI_OS_CPACR_FPU_MASK;
-    __asm__ volatile ("dsb\n" "isb" ::: "memory");
+    __asm__ volatile("dsb\n"
+                     "isb" ::
+                         : "memory");
 }
 #endif /* MINI_OS_ARCH_HAS_FPU && MINI_OS_USE_FPU */
 
@@ -53,11 +56,11 @@ static void mini_os_fpu_enable_ctor(void)
  */
 mini_os_err_t mini_os_cpu_probe(void)
 {
-    volatile mini_os_uint32_t *cpuid = (volatile mini_os_uint32_t *)MINI_OS_SCB_CPUID;
-    mini_os_uint32_t partno = (*cpuid >> MINI_OS_CPUID_PARTNO_SHIFT) & MINI_OS_CPUID_PARTNO_MASK;
+    volatile mini_os_uint32_t* cpuid = (volatile mini_os_uint32_t*)MINI_OS_SCB_CPUID;
+    mini_os_uint32_t           partno = (*cpuid >> MINI_OS_CPUID_PARTNO_SHIFT) & MINI_OS_CPUID_PARTNO_MASK;
 
 #if MINI_OS_ARCH == MINI_OS_ARCH_M0
-    if (partno != MINI_OS_CPUID_PARTNO_M0 && partno != MINI_OS_CPUID_PARTNO_M0P)   /* ARMv6-M twins */
+    if (partno != MINI_OS_CPUID_PARTNO_M0 && partno != MINI_OS_CPUID_PARTNO_M0P) /* ARMv6-M twins */
 #elif MINI_OS_ARCH == MINI_OS_ARCH_M3
     if (partno != MINI_OS_CPUID_PARTNO_M3)
 #elif MINI_OS_ARCH == MINI_OS_ARCH_M4
@@ -67,9 +70,7 @@ mini_os_err_t mini_os_cpu_probe(void)
 #else
 #error "mini-os: unsupported MINI_OS_ARCH value in mini_os_cpu_probe"
 #endif
-    {
         return MINI_OS_ERR_NOTSUPP;
-    }
     return MINI_OS_OK;
 }
 
@@ -101,10 +102,7 @@ extern mini_os_uint32_t __mini_os_heap_end;
  * @note constructor, runs after the CPU probe and before any thread exists
  */
 MINI_OS_CONSTRUCTOR(MINI_OS_STACK_SENTINEL_CONSTRUCTOR)
-static void mini_os_stack_sentinel_ctor(void)
-{
-    __mini_os_heap_end = MINI_OS_STACK_MAGIC;
-}
+static void mini_os_stack_sentinel_ctor(void) { __mini_os_heap_end = MINI_OS_STACK_MAGIC; }
 
 /**
  * @brief Check the stack sentinel; halt on overflow (fail fast)
@@ -129,7 +127,7 @@ void mini_os_stack_overflow_check(void)
  * @param[in] arg opaque argument handed back to the callback
  * @note the two globals are read directly by port.S, hence they are not static
  */
-void mini_os_svc_set_callback(svc_call_back cb, void *arg)
+void mini_os_svc_set_callback(svc_call_back cb, void* arg)
 {
     g_svc_cb = cb;
     g_svc_arg = arg;
@@ -142,10 +140,10 @@ void mini_os_svc_set_callback(svc_call_back cb, void *arg)
  * @details the stacked PC points at the instruction after the SVC, and a Thumb
  *          SVC is 2 bytes wide: [pc-2] is the 0xDF opcode, [pc-1] is the imm8
  */
-mini_os_uint8_t mini_os_svc_get_num(mini_os_uint32_t *frame)
+mini_os_uint8_t mini_os_svc_get_num(mini_os_uint32_t* frame)
 {
     mini_os_uint32_t pc = frame[6];                       /* stacked PC: address after the SVC instruction */
-    mini_os_uint8_t num = *((mini_os_uint8_t *)(pc - 1)); /* Thumb SVC is 2 bytes: [pc-2]=0xDF opcode, [pc-1]=imm8 */
+    mini_os_uint8_t  num = *((mini_os_uint8_t*)(pc - 1)); /* Thumb SVC is 2 bytes: [pc-2]=0xDF opcode, [pc-1]=imm8 */
     return num;
 }
 
@@ -155,10 +153,8 @@ mini_os_uint8_t mini_os_svc_get_num(mini_os_uint32_t *frame)
  * @param[in] cb callback to invoke (MINI_OS_NULL is ignored)
  * @param[in] arg opaque argument handed to the callback
  */
-void mini_os_svc_dispatch(mini_os_uint32_t *frame, svc_call_back cb, void *arg)
+void mini_os_svc_dispatch(mini_os_uint32_t* frame, svc_call_back cb, void* arg)
 {
     if (cb != NULL)
-    {
         cb(frame, arg);
-    }
 }

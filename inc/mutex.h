@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @file mutex.h
  * @brief mutex implementation (recursive variant, priority inheritance over a binary semaphore)
@@ -10,9 +10,10 @@
 #include "semaphore.h"
 #include "thread.h"
 #if defined(__cplusplus)
-extern "C" {
+extern "C"
+{
 #endif
-
+// clang-format off
 typedef struct mini_os_mutex mini_os_mutex_t;
 /**
  * @brief Mutex structure
@@ -25,14 +26,15 @@ typedef struct mini_os_mutex mini_os_mutex_t;
  */
 struct mini_os_mutex
 {
-    mini_os_semaphore_t semaphore; /**< mutex inheritance through Semaphore */
-    mini_os_uint8_t depth; /**< recursion depth (same-owner lock count, 0 = free) */
-    mini_os_bool_t  is_recuring; /**< MINI_OS_TRUE: the owner may re-lock (depth++) */
-    mini_os_thread_t *owner; /**< current owner, MINI_OS_NULL when free */
-    mini_os_list_t  hold_node; /**< links the mutex into owner->hold_list while held */
-    mini_os_bool_t kill_enable; /**< MINI_OS_TRUE after mini_os_mutex_enable_kill: delete may force-release */
+    mini_os_semaphore_t semaphore;      /**< mutex inheritance through Semaphore */
+    mini_os_uint8_t     depth;          /**< recursion depth (same-owner lock count, 0 = free) */
+    mini_os_bool_t      is_recuring;    /**< MINI_OS_TRUE: the owner may re-lock (depth++) */
+    mini_os_thread_t*   owner;          /**< current owner, MINI_OS_NULL when free */
+    mini_os_list_t      hold_node;      /**< links the mutex into owner->hold_list while held */
+    mini_os_bool_t      kill_enable;    /**< MINI_OS_TRUE after mini_os_mutex_enable_kill: delete may
+                                   force-release */
 #if MINI_OS_FIND_BY_NAME
-    mini_os_list_t g_list_node; /**< node of the global by-name registry */
+    mini_os_list_t g_list_node;         /**< node of the global by-name registry */
 #endif
 };
 
@@ -41,7 +43,7 @@ struct mini_os_mutex
  * @param[in] name mutex name (MINI_OS_NULL = unnamed)
  * @return A pointer to the created mutex, or MINI_OS_NULL on failure
  */
-mini_os_mutex_t *mini_os_mutex_create(const char *name);
+mini_os_mutex_t* mini_os_mutex_create(const char* name);
 
 /**
  * @brief Delete a heap-created mutex and free its memory
@@ -54,7 +56,7 @@ mini_os_mutex_t *mini_os_mutex_create(const char *name);
  *       unlinked and their mini_os_mutex_lock returns MINI_OS_ERR_TIMEOUT, the
  *       owner's later unlock returns MINI_OS_ERR_INVAL
  */
-mini_os_err_t mini_os_mutex_delete(mini_os_mutex_t *mutex);
+mini_os_err_t mini_os_mutex_delete(mini_os_mutex_t* mutex);
 
 /**
  * @brief Create a non-recursive mutex over caller-provided storage (created unlocked)
@@ -63,7 +65,7 @@ mini_os_err_t mini_os_mutex_delete(mini_os_mutex_t *mutex);
  * @return A pointer to the created mutex, or MINI_OS_NULL on invalid arguments
  * @note the storage must remain valid for the mutex lifetime
  */
-mini_os_mutex_t *mini_os_mutex_create_static(mini_os_mutex_t *mutex, const char *name);
+mini_os_mutex_t* mini_os_mutex_create_static(mini_os_mutex_t* mutex, const char* name);
 
 /**
  * @brief Delete a static mutex (clears the caller-provided storage, never frees)
@@ -72,7 +74,7 @@ mini_os_mutex_t *mini_os_mutex_create_static(mini_os_mutex_t *mutex, const char 
  *         MINI_OS_ERR_NOTSUPP for a heap mutex (use mini_os_mutex_delete);
  *         MINI_OS_ERR_BUSY like mini_os_mutex_delete, kill_enable honored
  */
-mini_os_err_t mini_os_mutex_delete_static(mini_os_mutex_t *mutex);
+mini_os_err_t mini_os_mutex_delete_static(mini_os_mutex_t* mutex);
 
 /**
  * @brief Create a recursive mutex (heap, created unlocked)
@@ -81,7 +83,7 @@ mini_os_err_t mini_os_mutex_delete_static(mini_os_mutex_t *mutex);
  * @note the owner may re-lock: each lock deepens depth, each unlock releases
  *       one level, only the final unlock hands the mutex over
  */
-mini_os_mutex_t *mini_os_mutex_recuring_create(const char* name);
+mini_os_mutex_t* mini_os_mutex_recuring_create(const char* name);
 
 /**
  * @brief Create a recursive mutex over caller-provided storage (created unlocked)
@@ -89,7 +91,7 @@ mini_os_mutex_t *mini_os_mutex_recuring_create(const char* name);
  * @param[in] mutex storage for the mutex descriptor
  * @return A pointer to the created mutex, or MINI_OS_NULL on invalid arguments
  */
-mini_os_mutex_t *mini_os_mutex_recuring_create_static(const char* name ,mini_os_mutex_t *mutex);
+mini_os_mutex_t* mini_os_mutex_recuring_create_static(const char* name, mini_os_mutex_t* mutex);
 
 /**
  * @brief Lock a mutex (priority inheritance on contention)
@@ -111,7 +113,7 @@ mini_os_mutex_t *mini_os_mutex_recuring_create_static(const char* name ,mini_os_
  *       the mutex, or when the mutex is kill-deleted: the owner is recomputed
  *       from its base priority and the mutexes it still holds
  */
-mini_os_err_t mini_os_mutex_lock(mini_os_mutex_t *mutex, mini_os_tick_t timeout_tick);
+mini_os_err_t mini_os_mutex_lock(mini_os_mutex_t* mutex, mini_os_tick_t timeout_tick);
 
 /**
  * @brief Unlock a mutex (owner only; the final unlock recomputes the owner priority)
@@ -124,7 +126,7 @@ mini_os_err_t mini_os_mutex_lock(mini_os_mutex_t *mutex, mini_os_tick_t timeout_
  *       required by the mutexes it keeps holding, not on the saved base of this
  *       mutex alone
  */
-mini_os_err_t mini_os_mutex_unlock(mini_os_mutex_t *mutex);
+mini_os_err_t mini_os_mutex_unlock(mini_os_mutex_t* mutex);
 
 /**
  * @brief Try-lock a mutex from ISR context (never blocks, never yields)
@@ -136,7 +138,7 @@ mini_os_err_t mini_os_mutex_unlock(mini_os_mutex_t *mutex);
  * @note no priority inheritance happens for a failed ISR try-lock (the ISR does
  *       not park as a waiter)
  */
-mini_os_err_t mini_os_mutex_lock_isr(mini_os_mutex_t *mutex);
+mini_os_err_t mini_os_mutex_lock_isr(mini_os_mutex_t* mutex);
 
 /**
  * @brief Unlock a mutex from ISR context (the interrupted thread must be the owner)
@@ -147,7 +149,7 @@ mini_os_err_t mini_os_mutex_lock_isr(mini_os_mutex_t *mutex);
  *       use the mini_os_queue_isr_is_heigher_priority() + mini_os_yield_trigger()
  *       pattern at the end of the ISR (same as the other ISR APIs)
  */
-mini_os_err_t mini_os_mutex_unlock_isr(mini_os_mutex_t *mutex);
+mini_os_err_t mini_os_mutex_unlock_isr(mini_os_mutex_t* mutex);
 
 /**
  * @brief Allow mini_os_mutex_delete/_static to force-release this mutex
@@ -157,7 +159,7 @@ mini_os_err_t mini_os_mutex_unlock_isr(mini_os_mutex_t *mutex);
  *       MINI_OS_ERR_TIMEOUT from their mini_os_mutex_lock call; the owner's
  *       later unlock returns MINI_OS_ERR_INVAL
  */
-mini_os_err_t mini_os_mutex_enable_kill(mini_os_mutex_t *mutex);
+mini_os_err_t mini_os_mutex_enable_kill(mini_os_mutex_t* mutex);
 
 /**
  * @brief Recompute a thread's effective priority from its base priority, the
@@ -168,7 +170,7 @@ mini_os_err_t mini_os_mutex_enable_kill(mini_os_mutex_t *mutex);
  *       lock holder keeps the boost its waiters still require and a thread
  *       blocked on a mutex pushes its new priority on to that mutex's owner
  */
-mini_os_err_t mini_os_mutex_priority_recompute(mini_os_thread_t *thread);
+mini_os_err_t mini_os_mutex_priority_recompute(mini_os_thread_t* thread);
 
 /**
  * @brief Force-release every mutex a disappearing thread still holds (kernel API)
@@ -182,7 +184,7 @@ mini_os_err_t mini_os_mutex_priority_recompute(mini_os_thread_t *thread);
  *       inconsistent state after its owner disappeared
  * @note never yields by itself, so it is safe to call inside a critical section
  */
-mini_os_bool_t mini_os_mutex_kill_held(mini_os_thread_t *thread);
+mini_os_bool_t mini_os_mutex_kill_held(mini_os_thread_t* thread);
 
 #if MINI_OS_FIND_BY_NAME
 /**
@@ -190,7 +192,7 @@ mini_os_bool_t mini_os_mutex_kill_held(mini_os_thread_t *thread);
  * @param[in] name mutex name
  * @return A pointer to the mutex, or MINI_OS_NULL if not found
  */
-mini_os_mutex_t *mini_os_mutex_find_by_name(const char *name);
+mini_os_mutex_t* mini_os_mutex_find_by_name(const char* name);
 #endif
 #if defined(__cplusplus)
 }

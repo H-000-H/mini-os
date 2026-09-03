@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @copyright SPDX-License-Identifier: Apache-2.0
  * @brief mutex implementation (recursive variant, priority inheritance over the
  *        embedded binary semaphore)
@@ -15,6 +15,7 @@
  *  - every inheritance step runs with interrupts disabled
  */
 #include "mutex.h"
+
 #include "err.h"
 #include "list.h"
 #include "memory.h"
@@ -33,10 +34,7 @@ static mini_os_list_t g_mutex_list;
  * @note the list head becomes a self-referencing sentinel, so mutexes can be
  *       linked before the scheduler is up
  */
-MINI_OS_CONSTRUCTOR(MINI_OS_MUTEX_REGISTRY_CONSTRUCTOR) void mini_os_mutex_registry_init(void)
-{
-    mini_os_list_init(&g_mutex_list);
-}
+MINI_OS_CONSTRUCTOR(MINI_OS_MUTEX_REGISTRY_CONSTRUCTOR) void mini_os_mutex_registry_init(void) { mini_os_list_init(&g_mutex_list); }
 #endif
 
 /**
@@ -45,19 +43,17 @@ MINI_OS_CONSTRUCTOR(MINI_OS_MUTEX_REGISTRY_CONSTRUCTOR) void mini_os_mutex_regis
  * @return smallest priority number on the wait list; MINI_OS_PRIORITY when empty
  * @note caller must hold interrupts disabled
  */
-static mini_os_uint8_t mini_os_mutex_highest_waiter(mini_os_mutex_t *mutex)
+static mini_os_uint8_t mini_os_mutex_highest_waiter(mini_os_mutex_t* mutex)
 {
-    mini_os_list_t *node;
+    mini_os_list_t* node;
     mini_os_uint8_t highest = MINI_OS_PRIORITY;
 
     for (node = mutex->semaphore.wait_list.next; node != &mutex->semaphore.wait_list; node = node->next)
     {
-        mini_os_thread_t *waiter = mini_os_container_of(node, mini_os_thread_t, wait_node);
+        mini_os_thread_t* waiter = mini_os_container_of(node, mini_os_thread_t, wait_node);
 
         if (waiter->priority < highest)
-        {
             highest = waiter->priority;
-        }
     }
     return highest;
 }
@@ -68,20 +64,18 @@ static mini_os_uint8_t mini_os_mutex_highest_waiter(mini_os_mutex_t *mutex)
  * @return smallest priority number required, always a valid priority
  * @note caller must hold interrupts disabled
  */
-static mini_os_uint8_t mini_os_mutex_required_priority(mini_os_thread_t *thread)
+static mini_os_uint8_t mini_os_mutex_required_priority(mini_os_thread_t* thread)
 {
-    mini_os_list_t *node;
+    mini_os_list_t* node;
     mini_os_uint8_t required = thread->base_priority;
 
     for (node = thread->hold_list.next; node != &thread->hold_list; node = node->next)
     {
-        mini_os_mutex_t *held = mini_os_container_of(node, mini_os_mutex_t, hold_node);
-        mini_os_uint8_t waiter = mini_os_mutex_highest_waiter(held);
+        mini_os_mutex_t* held = mini_os_container_of(node, mini_os_mutex_t, hold_node);
+        mini_os_uint8_t  waiter = mini_os_mutex_highest_waiter(held);
 
         if (waiter < required)
-        {
             required = waiter;
-        }
     }
     return required;
 }
@@ -98,29 +92,23 @@ static mini_os_uint8_t mini_os_mutex_required_priority(mini_os_thread_t *thread)
  *          MINI_OS_MUTEX_PI_CHAIN_MAX caps the length and breaks wait cycles
  * @note caller must hold interrupts disabled
  */
-static void mini_os_mutex_propagate(mini_os_thread_t *thread, mini_os_uint8_t extra, mini_os_uint32_t depth)
+static void mini_os_mutex_propagate(mini_os_thread_t* thread, mini_os_uint8_t extra, mini_os_uint32_t depth)
 {
     while (thread != MINI_OS_NULL && depth < MINI_OS_MUTEX_PI_CHAIN_MAX)
     {
-        mini_os_uint8_t required = mini_os_mutex_required_priority(thread);
-        mini_os_mutex_t *waited;
+        mini_os_uint8_t  required = mini_os_mutex_required_priority(thread);
+        mini_os_mutex_t* waited;
 
         if (extra < required)
-        {
             required = extra;
-        }
         if (required != thread->priority)
-        {
             (void)mini_os_thread_priority_apply(thread, required);
-        }
 
         /* the requirement does not stop at a blocked holder: whoever owns the
          * mutex it is parked on has to run at least as fast */
         waited = thread->wait_mutex;
         if (waited == MINI_OS_NULL || thread->wait_list != &waited->semaphore.wait_list)
-        {
             return; /* not parked on a mutex wait list, or the wait already ended */
-        }
         thread = waited->owner;
         extra = required;
         depth++;
@@ -139,15 +127,15 @@ static void mini_os_mutex_propagate(mini_os_thread_t *thread, mini_os_uint8_t ex
  *       the waiter's timeout path must not dereference it again
  * @note caller must hold interrupts disabled
  */
-static mini_os_bool_t mini_os_mutex_kill_waiters(mini_os_mutex_t *mutex)
+static mini_os_bool_t mini_os_mutex_kill_waiters(mini_os_mutex_t* mutex)
 {
-    mini_os_list_t *node;
-    mini_os_list_t *next;
-    mini_os_bool_t woken = MINI_OS_FALSE;
+    mini_os_list_t* node;
+    mini_os_list_t* next;
+    mini_os_bool_t  woken = MINI_OS_FALSE;
 
     for (node = mutex->semaphore.wait_list.next; node != &mutex->semaphore.wait_list; node = next)
     {
-        mini_os_thread_t *thread = mini_os_container_of(node, mini_os_thread_t, wait_node);
+        mini_os_thread_t* thread = mini_os_container_of(node, mini_os_thread_t, wait_node);
 
         next = node->next;
         mini_os_list_remove(&thread->wait_node);
@@ -155,9 +143,7 @@ static mini_os_bool_t mini_os_mutex_kill_waiters(mini_os_mutex_t *mutex)
         thread->wait_mutex = MINI_OS_NULL;
         thread->wait_done = MINI_OS_FALSE; /* the wait is killed, not satisfied */
         if (thread->wheel_slot < MINI_OS_TICK_WHEEL)
-        {
             (void)mini_os_remove_thread_from_blocked_list(thread);
-        }
         (void)mini_os_add_thread_to_ready_running_list(thread);
         woken = MINI_OS_TRUE;
     }
@@ -176,17 +162,14 @@ static mini_os_bool_t mini_os_mutex_kill_waiters(mini_os_mutex_t *mutex)
  *          recursion depth is 0 and hold_node is self-referencing, which is the
  *          "not held" state of the mini-os list convention
  */
-static mini_os_err_t mini_os_mutex_init(mini_os_mutex_t *mutex, const char *name,
-                                        mini_os_bool_t is_recuring, mini_os_bool_t is_static)
+static mini_os_err_t mini_os_mutex_init(mini_os_mutex_t* mutex, const char* name, mini_os_bool_t is_recuring, mini_os_bool_t is_static)
 {
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     mini_os_set_name(mutex->semaphore.name, name, MINI_OS_SEMAPHORE_NAME_LEN);
-    mutex->semaphore.count = 1u;          /* created unlocked */
-    mutex->semaphore.max_count = 1u;      /* binary: one unit */
+    mutex->semaphore.count = 1u;     /* created unlocked */
+    mutex->semaphore.max_count = 1u; /* binary: one unit */
     mutex->semaphore.is_static = is_static;
     mini_os_list_init(&mutex->semaphore.wait_list);
     mutex->owner = MINI_OS_NULL;
@@ -212,14 +195,12 @@ static mini_os_err_t mini_os_mutex_init(mini_os_mutex_t *mutex, const char *name
  * @param[in] name mutex name (MINI_OS_NULL = unnamed)
  * @return mutex handle on success; MINI_OS_NULL on failure
  */
-mini_os_mutex_t *mini_os_mutex_create(const char *name)
+mini_os_mutex_t* mini_os_mutex_create(const char* name)
 {
-    mini_os_mutex_t *mutex = (mini_os_mutex_t *)mini_os_malloc(sizeof(mini_os_mutex_t));
+    mini_os_mutex_t* mutex = (mini_os_mutex_t*)mini_os_malloc(sizeof(mini_os_mutex_t));
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_mutex_init(mutex, name, MINI_OS_FALSE, MINI_OS_FALSE) != MINI_OS_OK)
     {
         (void)mini_os_free(mutex);
@@ -233,14 +214,12 @@ mini_os_mutex_t *mini_os_mutex_create(const char *name)
  * @param[in] name mutex name (MINI_OS_NULL = unnamed)
  * @return mutex handle on success; MINI_OS_NULL on failure
  */
-mini_os_mutex_t *mini_os_mutex_recuring_create(const char *name)
+mini_os_mutex_t* mini_os_mutex_recuring_create(const char* name)
 {
-    mini_os_mutex_t *mutex = (mini_os_mutex_t *)mini_os_malloc(sizeof(mini_os_mutex_t));
+    mini_os_mutex_t* mutex = (mini_os_mutex_t*)mini_os_malloc(sizeof(mini_os_mutex_t));
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_mutex_init(mutex, name, MINI_OS_TRUE, MINI_OS_FALSE) != MINI_OS_OK)
     {
         (void)mini_os_free(mutex);
@@ -255,16 +234,12 @@ mini_os_mutex_t *mini_os_mutex_recuring_create(const char *name)
  * @param[in] name mutex name (MINI_OS_NULL = unnamed)
  * @return mutex handle on success; MINI_OS_NULL on invalid arguments
  */
-mini_os_mutex_t *mini_os_mutex_create_static(mini_os_mutex_t *mutex, const char *name)
+mini_os_mutex_t* mini_os_mutex_create_static(mini_os_mutex_t* mutex, const char* name)
 {
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_mutex_init(mutex, name, MINI_OS_FALSE, MINI_OS_TRUE) != MINI_OS_OK)
-    {
         return MINI_OS_NULL;
-    }
     return mutex;
 }
 
@@ -274,16 +249,12 @@ mini_os_mutex_t *mini_os_mutex_create_static(mini_os_mutex_t *mutex, const char 
  * @param[in] mutex storage for the mutex descriptor
  * @return mutex handle on success; MINI_OS_NULL on invalid arguments
  */
-mini_os_mutex_t *mini_os_mutex_recuring_create_static(const char *name, mini_os_mutex_t *mutex)
+mini_os_mutex_t* mini_os_mutex_recuring_create_static(const char* name, mini_os_mutex_t* mutex)
 {
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     if (mini_os_mutex_init(mutex, name, MINI_OS_TRUE, MINI_OS_TRUE) != MINI_OS_OK)
-    {
         return MINI_OS_NULL;
-    }
     return mutex;
 }
 
@@ -308,17 +279,15 @@ mini_os_mutex_t *mini_os_mutex_recuring_create_static(const char *name, mini_os_
  *       parked_on pointer is compared instead of dereferenced, so a mutex that
  *       was kill-deleted under us cannot be used after free
  */
-mini_os_err_t mini_os_mutex_lock(mini_os_mutex_t *mutex, mini_os_tick_t timeout_tick)
+mini_os_err_t mini_os_mutex_lock(mini_os_mutex_t* mutex, mini_os_tick_t timeout_tick)
 {
-    mini_os_thread_t *current;
-    mini_os_mutex_t *parked_on;
-    mini_os_err_t ret;
-    mini_os_irq_t irq;
+    mini_os_thread_t* current;
+    mini_os_mutex_t*  parked_on;
+    mini_os_err_t     ret;
+    mini_os_irq_t     irq;
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     current = mini_os_thread_current();
@@ -406,15 +375,13 @@ mini_os_err_t mini_os_mutex_lock(mini_os_mutex_t *mutex, mini_os_tick_t timeout_
  *          mutexes it keeps holding still require (base when this was the last
  *          one) and then hands the unit to the oldest waiter or republishes it
  */
-mini_os_err_t mini_os_mutex_unlock(mini_os_mutex_t *mutex)
+mini_os_err_t mini_os_mutex_unlock(mini_os_mutex_t* mutex)
 {
-    mini_os_thread_t *current;
-    mini_os_irq_t irq;
+    mini_os_thread_t* current;
+    mini_os_irq_t     irq;
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     current = mini_os_thread_current();
@@ -448,15 +415,13 @@ mini_os_err_t mini_os_mutex_unlock(mini_os_mutex_t *mutex)
  *         thread; MINI_OS_ERR_AGAIN when contested; MINI_OS_ERR_BUSY on a
  *         non-recursive owner re-lock or a recursion overflow
  */
-mini_os_err_t mini_os_mutex_lock_isr(mini_os_mutex_t *mutex)
+mini_os_err_t mini_os_mutex_lock_isr(mini_os_mutex_t* mutex)
 {
-    mini_os_thread_t *current;
-    mini_os_irq_t irq;
+    mini_os_thread_t* current;
+    mini_os_irq_t     irq;
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     current = mini_os_thread_current();
@@ -497,15 +462,13 @@ mini_os_err_t mini_os_mutex_lock_isr(mini_os_mutex_t *mutex)
  * @note wakes the oldest waiter but never triggers the context switch itself:
  *       the ISR caller decides through the is_heigher_priority pattern
  */
-mini_os_err_t mini_os_mutex_unlock_isr(mini_os_mutex_t *mutex)
+mini_os_err_t mini_os_mutex_unlock_isr(mini_os_mutex_t* mutex)
 {
-    mini_os_thread_t *current;
-    mini_os_irq_t irq;
+    mini_os_thread_t* current;
+    mini_os_irq_t     irq;
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
 
     irq = mini_os_irq_save();
     current = mini_os_thread_current();
@@ -534,14 +497,12 @@ mini_os_err_t mini_os_mutex_unlock_isr(mini_os_mutex_t *mutex)
  * @param[in] mutex mutex to arm
  * @return MINI_OS_OK on success; MINI_OS_ERR_INVAL on invalid arguments
  */
-mini_os_err_t mini_os_mutex_enable_kill(mini_os_mutex_t *mutex)
+mini_os_err_t mini_os_mutex_enable_kill(mini_os_mutex_t* mutex)
 {
     mini_os_irq_t irq;
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     mutex->kill_enable = MINI_OS_TRUE;
     mini_os_irq_restore(irq);
@@ -557,14 +518,12 @@ mini_os_err_t mini_os_mutex_enable_kill(mini_os_mutex_t *mutex)
  *       its waiters still require and a thread blocked on a mutex pushes the
  *       change on to that mutex's owner
  */
-mini_os_err_t mini_os_mutex_priority_recompute(mini_os_thread_t *thread)
+mini_os_err_t mini_os_mutex_priority_recompute(mini_os_thread_t* thread)
 {
     mini_os_irq_t irq;
 
     if (thread == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     irq = mini_os_irq_save();
     mini_os_mutex_propagate(thread, MINI_OS_PRIORITY, 0u);
     mini_os_irq_restore(irq);
@@ -584,28 +543,24 @@ mini_os_err_t mini_os_mutex_priority_recompute(mini_os_thread_t *thread)
  *       captures the next pointer first because both helpers re-link nodes
  * @note never yields by itself, so it is safe inside a critical section
  */
-mini_os_bool_t mini_os_mutex_kill_held(mini_os_thread_t *thread)
+mini_os_bool_t mini_os_mutex_kill_held(mini_os_thread_t* thread)
 {
-    mini_os_list_t *node;
-    mini_os_list_t *next;
-    mini_os_bool_t woken = MINI_OS_FALSE;
-    mini_os_irq_t irq;
+    mini_os_list_t* node;
+    mini_os_list_t* next;
+    mini_os_bool_t  woken = MINI_OS_FALSE;
+    mini_os_irq_t   irq;
 
     if (thread == MINI_OS_NULL)
-    {
         return MINI_OS_FALSE;
-    }
 
     irq = mini_os_irq_save();
     for (node = thread->hold_list.next; node != &thread->hold_list; node = next)
     {
-        mini_os_mutex_t *mutex = mini_os_container_of(node, mini_os_mutex_t, hold_node);
+        mini_os_mutex_t* mutex = mini_os_container_of(node, mini_os_mutex_t, hold_node);
 
         next = node->next; /* captured first: both helpers below re-link nodes */
         if (mini_os_mutex_kill_waiters(mutex) != MINI_OS_FALSE)
-        {
             woken = MINI_OS_TRUE;
-        }
         mini_os_list_remove(&mutex->hold_node);
         mutex->owner = MINI_OS_NULL;
         mutex->depth = 0u;
@@ -630,23 +585,18 @@ mini_os_bool_t mini_os_mutex_kill_held(mini_os_thread_t *thread)
  * @note with kill enabled the waiters are released with MINI_OS_ERR_TIMEOUT, the
  *          owner loses this mutex's requirement and the mutex is left free
  */
-static mini_os_err_t mini_os_mutex_delete_common(mini_os_mutex_t *mutex, mini_os_bool_t is_static)
+static mini_os_err_t mini_os_mutex_delete_common(mini_os_mutex_t* mutex, mini_os_bool_t is_static)
 {
     mini_os_bool_t woken = MINI_OS_FALSE;
-    mini_os_irq_t irq;
+    mini_os_irq_t  irq;
 
     if (mutex == MINI_OS_NULL)
-    {
         return MINI_OS_ERR_INVAL;
-    }
     if ((mutex->semaphore.is_static != MINI_OS_FALSE) != (is_static != MINI_OS_FALSE))
-    {
         return MINI_OS_ERR_NOTSUPP; /* wrong delete variant for this storage */
-    }
 
     irq = mini_os_irq_save();
-    if (mutex->semaphore.count == 0u && mutex->owner == MINI_OS_NULL &&
-        mini_os_list_is_empty(&mutex->semaphore.wait_list))
+    if (mutex->semaphore.count == 0u && mutex->owner == MINI_OS_NULL && mini_os_list_is_empty(&mutex->semaphore.wait_list))
     {
         /* unit in flight: already handed to a woken taker that has not taken
          * ownership yet, freeing now would leave it writing a dead descriptor */
@@ -655,7 +605,7 @@ static mini_os_err_t mini_os_mutex_delete_common(mini_os_mutex_t *mutex, mini_os
     }
     if (!mini_os_list_is_empty(&mutex->semaphore.wait_list) || mutex->owner != MINI_OS_NULL)
     {
-        mini_os_thread_t *owner;
+        mini_os_thread_t* owner;
 
         if (mutex->kill_enable == MINI_OS_FALSE)
         {
@@ -679,17 +629,11 @@ static mini_os_err_t mini_os_mutex_delete_common(mini_os_mutex_t *mutex, mini_os
     mini_os_irq_restore(irq);
 
     if (is_static != MINI_OS_FALSE)
-    {
         MINI_OS_MEMSET(mutex, 0, sizeof(mini_os_mutex_t)); /* never free caller storage */
-    }
     else
-    {
         (void)mini_os_free(mutex);
-    }
     if (woken != MINI_OS_FALSE)
-    {
         (void)mini_os_schedule_yield(); /* killed waiters may outrank the caller */
-    }
     return MINI_OS_OK;
 }
 
@@ -700,10 +644,7 @@ static mini_os_err_t mini_os_mutex_delete_common(mini_os_mutex_t *mutex, mini_os
  *         MINI_OS_ERR_NOTSUPP for a static mutex; MINI_OS_ERR_BUSY while owned
  *         or waited on, unless kill is enabled
  */
-mini_os_err_t mini_os_mutex_delete(mini_os_mutex_t *mutex)
-{
-    return mini_os_mutex_delete_common(mutex, MINI_OS_FALSE);
-}
+mini_os_err_t mini_os_mutex_delete(mini_os_mutex_t* mutex) { return mini_os_mutex_delete_common(mutex, MINI_OS_FALSE); }
 
 /**
  * @brief Delete a static mutex (clears the caller storage, never frees)
@@ -712,10 +653,7 @@ mini_os_err_t mini_os_mutex_delete(mini_os_mutex_t *mutex)
  *         MINI_OS_ERR_NOTSUPP for a heap mutex; MINI_OS_ERR_BUSY like
  *         mini_os_mutex_delete(), kill_enable honored
  */
-mini_os_err_t mini_os_mutex_delete_static(mini_os_mutex_t *mutex)
-{
-    return mini_os_mutex_delete_common(mutex, MINI_OS_TRUE);
-}
+mini_os_err_t mini_os_mutex_delete_static(mini_os_mutex_t* mutex) { return mini_os_mutex_delete_common(mutex, MINI_OS_TRUE); }
 
 #if MINI_OS_FIND_BY_NAME
 /**
@@ -724,22 +662,18 @@ mini_os_err_t mini_os_mutex_delete_static(mini_os_mutex_t *mutex)
  * @return mutex handle on success; MINI_OS_NULL when name is MINI_OS_NULL or no
  *         mutex carries that name
  */
-mini_os_mutex_t *mini_os_mutex_find_by_name(const char *name)
+mini_os_mutex_t* mini_os_mutex_find_by_name(const char* name)
 {
-    mini_os_list_t *node;
+    mini_os_list_t* node;
 
     if (name == MINI_OS_NULL)
-    {
         return MINI_OS_NULL;
-    }
     for (node = g_mutex_list.next; node != &g_mutex_list; node = node->next)
     {
-        mini_os_mutex_t *mutex = mini_os_container_of(node, mini_os_mutex_t, g_list_node);
+        mini_os_mutex_t* mutex = mini_os_container_of(node, mini_os_mutex_t, g_list_node);
 
         if (MINI_OS_STRCMP(mutex->semaphore.name, name) == 0)
-        {
             return mutex;
-        }
     }
     return MINI_OS_NULL;
 }
