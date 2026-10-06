@@ -1,8 +1,8 @@
 ﻿/**
- * @copyright SPDX-License-Identifier: Apache-2.0
  * @file err.h
- * @brief Error codes
  * @author H-000-H
+ * @brief Error codes
+ * @copyright SPDX-License-Identifier: Apache-2.0
  */
 #ifndef ERR_H
 #define ERR_H

@@ -1,5 +1,4 @@
 /**
- * @copyright SPDX-License-Identifier: Apache-2.0
  * @file redef.h
  * @author H-000-H
  * @brief mini-os redefinition macros file (all symbols prefixed mini_os_/MINI_OS_)
@@ -8,6 +7,7 @@
  *   - this project defaults to not including standard c library headers and versions v0.1.0
  * defaults to 32-bit mode
  *   - temporary not included 64-bit equipment
+ * @copyright SPDX-License-Identifier: Apache-2.0
  */
 #ifndef REDEF_H
 #define REDEF_H
