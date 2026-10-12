@@ -12,16 +12,16 @@
  *    sentinel, so the head is A again and the thread keeps running
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#include "schedule.h"
+#include <schedule.h>
 
-#include "err.h"
-#include "list.h"
-#include "mini_config.h"
-#include "port.h"
-#include "redef.h"
-#include "semaphore.h"
-#include "thread.h"
-#include "timer.h"
+#include <err.h>
+#include <list.h>
+#include <mini_config.h>
+#include <port.h>
+#include <redef.h>
+#include <semaphore.h>
+#include <thread.h>
+#include <timer.h>
 
 /** @brief Ready bitmap: bit i set = priority i has a ready or running thread*/
 mini_os_uint32_t g_priority = 0u;
@@ -67,10 +67,7 @@ static mini_os_list_t s_dl_ready_list;
  *          period must stay out of the bandwidth arithmetic and the job refill
  * @note caller must hold interrupts disabled
  */
-MINI_OS_STATIC_INLINE mini_os_bool_t mini_os_dl_scheduled(const mini_os_thread_t* thread)
-{
-    return (mini_os_bool_t)(thread->sched_policy == MINI_OS_SCHED_DEADLINE || thread->dl_deadline_inherit != 0);
-}
+MINI_OS_STATIC_INLINE mini_os_bool_t mini_os_dl_scheduled(const mini_os_thread_t* thread) { return (mini_os_bool_t)(thread->sched_policy == MINI_OS_SCHED_DEADLINE || thread->dl_deadline_inherit != 0); }
 #endif /* MINI_OS_THREAD_DEADLINE */
 
 /** @brief Slot of the thread time wheel serviced on the next tick */
@@ -91,10 +88,7 @@ static mini_os_uint64_t s_dl_running_bw = 0u;
 /**
  * @brief Bandwidth of one DL task, in MINI_OS_DL_BW_SCALE units
  */
-static mini_os_uint64_t mini_os_dl_bw_of(mini_os_tick_t runtime, mini_os_tick_t period)
-{
-    return ((mini_os_uint64_t)runtime * (mini_os_uint64_t)MINI_OS_DL_BW_SCALE) / (mini_os_uint64_t)period;
-}
+static mini_os_uint64_t mini_os_dl_bw_of(mini_os_tick_t runtime, mini_os_tick_t period) { return ((mini_os_uint64_t)runtime * (mini_os_uint64_t)MINI_OS_DL_BW_SCALE) / (mini_os_uint64_t)period; }
 
 /**
  * @brief Admission control: reserve runtime/period for a new DL task
@@ -133,7 +127,7 @@ static void* s_dl_miss_param = MINI_OS_NULL;
  */
 mini_os_err_t mini_os_dl_miss_hook_set(mini_os_dl_miss_hook_t hook, void* param)
 {
-    s_dl_miss_hook  = hook;
+    s_dl_miss_hook = hook;
     s_dl_miss_param = param;
     return MINI_OS_OK;
 }
@@ -162,7 +156,7 @@ static void* s_dl_finish_param = MINI_OS_NULL;
  */
 mini_os_err_t mini_os_dl_finish_hook_set(mini_os_dl_finish_hook_t hook, void* param)
 {
-    s_dl_finish_hook  = hook;
+    s_dl_finish_hook = hook;
     s_dl_finish_param = param;
     return MINI_OS_OK;
 }
@@ -204,7 +198,7 @@ mini_os_err_t mini_os_schedule_init(void)
         mini_os_list_init(&s_wheel[i]);
 #if MINI_OS_THREAD_DEADLINE
     mini_os_list_init(&s_dl_ready_list);
-    s_dl_this_bw    = 0u;
+    s_dl_this_bw = 0u;
     s_dl_running_bw = 0u;
 #endif
     s_current_slot = 0;
@@ -268,7 +262,7 @@ mini_os_err_t mini_os_schedule_switch(void)
     else
 #endif
     {
-        mini_os_uint8_t old_priority  = s_current_priority;
+        mini_os_uint8_t old_priority = s_current_priority;
         mini_os_uint8_t next_priority = mini_os_get_highest_priority();
 
         if (next_priority >= (mini_os_uint8_t)MINI_OS_PRIORITY)
@@ -284,8 +278,7 @@ mini_os_err_t mini_os_schedule_switch(void)
         if (mini_os_container_of(next_node, mini_os_thread_t, list_node)->sched_policy == MINI_OS_SCHED_NORMAL)
 #endif
         {
-            if (mini_os_current_thread != MINI_OS_NULL && next_priority == old_priority && mini_os_current_thread->state == MINI_OS_THREAD_STATE_READY &&
-                mini_os_current_thread->list_node.next != &mini_os_current_thread->list_node)
+            if (mini_os_current_thread != MINI_OS_NULL && next_priority == old_priority && mini_os_current_thread->state == MINI_OS_THREAD_STATE_READY && mini_os_current_thread->list_node.next != &mini_os_current_thread->list_node)
             {
                 /* round-robin: successor, wrap past the sentinel at the tail */
                 next_node = mini_os_current_thread->list_node.next;
@@ -358,8 +351,7 @@ mini_os_err_t mini_os_schedule_yield_isr(void)
                  * though the priority number is equal */
                 mini_os_list_t* head = g_ready_running_list[highest].next;
 
-                if (head != &g_ready_running_list[highest] && head != &mini_os_current_thread->list_node &&
-                    mini_os_container_of(head, mini_os_thread_t, list_node)->sched_policy == MINI_OS_SCHED_EDF)
+                if (head != &g_ready_running_list[highest] && head != &mini_os_current_thread->list_node && mini_os_container_of(head, mini_os_thread_t, list_node)->sched_policy == MINI_OS_SCHED_EDF)
                     preempt = MINI_OS_TRUE;
             }
 #endif
@@ -412,7 +404,7 @@ mini_os_err_t mini_os_add_thread_to_ready_running_list(mini_os_thread_t* thread)
     else
 #endif /* MINI_OS_THREAD_DEADLINE */
 #if MINI_OS_THREAD_EDF
-    if (thread->sched_policy == MINI_OS_SCHED_EDF)
+        if (thread->sched_policy == MINI_OS_SCHED_EDF)
     {
         /* same priority, EDF: ahead of every ordinary thread, and ahead of the
          * first EDF thread with a later deadline (equal deadlines stay FIFO) */
@@ -539,14 +531,14 @@ static void mini_os_dl_list_insert(mini_os_thread_t* thread)
  */
 static void mini_os_dl_new_job(mini_os_thread_t* thread, mini_os_uint32_t now)
 {
-    thread->dl_budget      = thread->dl_run_time; /* the new job starts with a full budget */
+    thread->dl_budget = thread->dl_run_time; /* the new job starts with a full budget */
     thread->dl_budget_frac = 0u;
     do
     {
         thread->dl_deadline_time += (mini_os_tick_t)thread->dl_period;
     } while ((mini_os_int32_t)(thread->dl_deadline_time - (mini_os_tick_t)now) <= 0);
     thread->dl_throttled = MINI_OS_FALSE;
-    thread->dl_job_done  = MINI_OS_FALSE;
+    thread->dl_job_done = MINI_OS_FALSE;
 }
 
 /**

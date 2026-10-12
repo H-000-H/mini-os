@@ -7,13 +7,13 @@
  *       several threads can wait for different masks on the same group at once
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#include "event.h"
+#include <event.h>
 
-#include "err.h"
-#include "list.h"
-#include "redef.h"
-#include "schedule.h"
-#include "thread.h"
+#include <err.h>
+#include <list.h>
+#include <redef.h>
+#include <schedule.h>
+#include <thread.h>
 
 #if MINI_OS_EVENT
 

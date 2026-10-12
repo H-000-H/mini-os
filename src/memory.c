@@ -7,11 +7,11 @@
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
 
-#include "memory.h"
+#include <memory.h>
 
-#include "err.h"
-#include "mem_heap.h"
-#include "redef.h"
+#include <err.h>
+#include <mem_heap.h>
+#include <redef.h>
 
 /* -------------------------------------------------------------------------- */
 /* Alignment granularity and minimum block                                    */

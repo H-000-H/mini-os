@@ -20,16 +20,16 @@
  *  - every inheritance step runs with interrupts disabled
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#include "mutex.h"
+#include <mutex.h>
 
-#include "err.h"
-#include "list.h"
-#include "memory.h"
-#include "mini_config.h"
-#include "redef.h"
-#include "schedule.h"
-#include "semaphore.h"
-#include "thread.h"
+#include <err.h>
+#include <list.h>
+#include <memory.h>
+#include <mini_config.h>
+#include <redef.h>
+#include <schedule.h>
+#include <semaphore.h>
+#include <thread.h>
 
 /**
  * @brief Deadline a taker folds into the inheritance walk before it is parked

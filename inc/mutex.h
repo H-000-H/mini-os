@@ -6,9 +6,9 @@
  */
 #ifndef MUTEX_H
 #define MUTEX_H
-#include "redef.h"
-#include "semaphore.h"
-#include "thread.h"
+#include <redef.h>
+#include <semaphore.h>
+#include <thread.h>
 #if defined(__cplusplus)
 extern "C"
 {

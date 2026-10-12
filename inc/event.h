@@ -10,11 +10,11 @@
 extern "C"
 {
 #endif
-#include "list.h"
-#include "memory.h"
-#include "mini_config.h"
-#include "redef.h"
-#include "thread.h"
+#include <list.h>
+#include <memory.h>
+#include <mini_config.h>
+#include <redef.h>
+#include <thread.h>
 
 #if MINI_OS_EVENT
 

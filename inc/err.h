@@ -19,7 +19,7 @@
  *       Their values are hard-coded in both branches and reference no status.h macro,
  *       so changing them must be mirrored in the slot base inside status.h.
  */
-#include "redef.h"
+#include <redef.h>
 // clang-format off
 #if __has_include(<config.h>) && __has_include(<compiler_compat.h>)
 #include <status.h>

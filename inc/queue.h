@@ -10,9 +10,9 @@
 extern "C"
 {
 #endif
-#include "list.h"
-#include "mini_config.h"
-#include "redef.h"
+#include <list.h>
+#include <mini_config.h>
+#include <redef.h>
 // clang-format off
 typedef struct mini_os_queue mini_os_queue_t;
 

@@ -6,13 +6,13 @@
  */
 #ifndef SEM_H
 #define SEM_H
-#include "err.h"
+#include <err.h>
 #if defined(__cplusplus)
 extern "C"
 {
 #endif
-#include "list.h"
-#include "redef.h"
+#include <list.h>
+#include <redef.h>
 typedef struct mini_os_semaphore mini_os_semaphore_t;
 
 /**

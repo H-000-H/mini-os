@@ -6,15 +6,15 @@
  */
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
-#include "err.h"
+#include <err.h>
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-#include "list.h"
-#include "mini_config.h"
-#include "redef.h"
-#include "thread.h"
+#include <list.h>
+#include <mini_config.h>
+#include <redef.h>
+#include <thread.h>
 /**
  * @brief Convert ticks to milliseconds
  * @param[in] ticks tick count

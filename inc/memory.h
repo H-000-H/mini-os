@@ -28,8 +28,8 @@
 extern "C"
 {
 #endif
-#include "list.h"
-#include "redef.h"
+#include <list.h>
+#include <redef.h>
 
 /*---------------------------------------------------------------------------------------------------------*/
 /*                                 slab build selection (mutually exclusive) */

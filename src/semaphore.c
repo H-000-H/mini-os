@@ -7,15 +7,15 @@
  *       binary semaphore can satisfy several parked takers in a row
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#include "semaphore.h"
+#include <semaphore.h>
 
-#include "err.h"
-#include "list.h"
-#include "memory.h"
-#include "mini_config.h"
-#include "redef.h"
-#include "schedule.h"
-#include "thread.h"
+#include <err.h>
+#include <list.h>
+#include <memory.h>
+#include <mini_config.h>
+#include <redef.h>
+#include <schedule.h>
+#include <thread.h>
 
 #if MINI_OS_FIND_BY_NAME
 /** @brief Global registry of every semaphore, used by mini_os_get_semaphore_by_name() */

@@ -8,12 +8,12 @@
  */
 #ifndef MINI_OS_THREAD_H
 #define MINI_OS_THREAD_H
-#include "redef.h"
+#include <redef.h>
 #if defined(__cplusplus)
 extern "C"
 {
 #endif
-#include "memory.h"
+#include <memory.h>
 #include <list.h>
 #include <mini_config.h>
 #include <redef.h>
@@ -114,7 +114,7 @@ struct mini_os_thread
     void*                     exit_retval;                      /**< exit return value */
     struct mini_os_semaphore* join_wait_sem;                    /**< join wait semaphore (incomplete type pointer) */
 #endif
-// clang-format on
+    // clang-format on
 };
 
 #if MINI_OS_THREAD_EDF || MINI_OS_THREAD_DEADLINE
@@ -126,10 +126,7 @@ struct mini_os_thread
  * @note uses the signed tick difference, so the ordering survives a 32-bit tick
  *       wrap exactly like mini_os_tick_until()
  */
-MINI_OS_STATIC_INLINE mini_os_bool_t mini_os_deadline_before(mini_os_tick_t first, mini_os_tick_t second)
-{
-    return (mini_os_bool_t)((mini_os_int32_t)(first - second) < 0);
-}
+MINI_OS_STATIC_INLINE mini_os_bool_t mini_os_deadline_before(mini_os_tick_t first, mini_os_tick_t second) { return (mini_os_bool_t)((mini_os_int32_t)(first - second) < 0); }
 
 /**
  * @brief Scheduling deadline of a thread: its own deadline, or an earlier one
@@ -146,8 +143,7 @@ MINI_OS_STATIC_INLINE mini_os_tick_t mini_os_thread_effective_deadline(const min
         return thread->dl_deadline_time;
     if (thread->dl_deadline_time == 0)
         return thread->dl_deadline_inherit;
-    return (mini_os_deadline_before(thread->dl_deadline_inherit, thread->dl_deadline_time) != MINI_OS_FALSE) ? thread->dl_deadline_inherit
-                                                                                                           : thread->dl_deadline_time;
+    return (mini_os_deadline_before(thread->dl_deadline_inherit, thread->dl_deadline_time) != MINI_OS_FALSE) ? thread->dl_deadline_inherit : thread->dl_deadline_time;
 }
 #endif /* MINI_OS_THREAD_EDF || MINI_OS_THREAD_DEADLINE */
 
@@ -515,14 +511,8 @@ void mini_os_thread_idle(void* param);
  *       boundary (creation fixes it at now + deadline). There is no deadline
  *       push-back, postponement or reclaiming-driven deadline adjustment.
  */
-mini_os_thread_t *mini_os_deadline_thread_create(           const char *name, 
-                                                            mini_os_uint32_t stack_size,
-                                                            mini_os_tick_t deadline,
-                                                            mini_os_tick_t period,
-                                                            mini_os_tick_t runtime,
-                                                            void( *entry)(void*),
-                                                            void * const parameter);
-                                                
+mini_os_thread_t* mini_os_deadline_thread_create(const char* name, mini_os_uint32_t stack_size, mini_os_tick_t deadline, mini_os_tick_t period, mini_os_tick_t runtime, void (*entry)(void*), void* const parameter);
+
 /**
  * @brief Create a deadline thread with static stack
  * @param[in] name Thread name
@@ -548,15 +538,8 @@ mini_os_thread_t *mini_os_deadline_thread_create(           const char *name,
  *       boundary (creation fixes it at now + deadline). There is no deadline
  *       push-back, postponement or reclaiming-driven deadline adjustment.
  */
-mini_os_thread_t *mini_os_deadline_thread_create_static(    const char *name, 
-                                                            mini_os_uint32_t stack_size,
-                                                            mini_os_tick_t deadline,
-                                                            mini_os_tick_t period,
-                                                            mini_os_tick_t runtime,
-                                                            void( *entry)(void*),
-                                                            void * const parameter,
-                                                            mini_os_uint32_t* stack_buffer,
-                                                            mini_os_thread_t* task_buffer);
+mini_os_thread_t* mini_os_deadline_thread_create_static(const char* name, mini_os_uint32_t stack_size, mini_os_tick_t deadline, mini_os_tick_t period, mini_os_tick_t runtime, void (*entry)(void*), void* const parameter,
+                                                        mini_os_uint32_t* stack_buffer, mini_os_thread_t* task_buffer);
 
 /**
  * @brief Renegotiate the budget and period of a DL thread (bandwidth change)

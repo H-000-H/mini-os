@@ -7,8 +7,8 @@
  */
 #ifndef TIMER_H
 #define TIMER_H
-#include "list.h"
-#include "mini_config.h"
+#include <list.h>
+#include <mini_config.h>
 #include <redef.h>
 #if defined(__cplusplus)
 extern "C"

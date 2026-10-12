@@ -8,12 +8,12 @@
  *       remaining time only, which keeps the total timeout strict
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#include "queue.h"
+#include <queue.h>
 
-#include "err.h"
-#include "memory.h"
-#include "redef.h"
-#include "schedule.h"
+#include <err.h>
+#include <memory.h>
+#include <redef.h>
+#include <schedule.h>
 
 /**
  * @brief Address of the message slot behind a slot index

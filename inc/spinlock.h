@@ -16,17 +16,17 @@
  */
 #ifndef SPINLOCK_H
 #define SPINLOCK_H
-#include "mini_config.h"
+#include <mini_config.h>
 
 #if MINI_OS_SPINLOCK /* default 0: compiled only with CONFIG_MINI_OS_SPINLOCK=1 (or an external predefinition) */
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-#include "err.h"
-#include "port.h"
-#include "redef.h"
-#include "schedule.h"
+#include <err.h>
+#include <port.h>
+#include <redef.h>
+#include <schedule.h>
 
 typedef struct mini_os_spinlock mini_os_spinlock_t;
 

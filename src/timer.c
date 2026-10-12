@@ -16,16 +16,16 @@
  *    constructor itself
  * @copyright SPDX-License-Identifier: Apache-2.0
  */
-#include "timer.h"
+#include <timer.h>
 
-#include "err.h"
-#include "list.h"
-#include "memory.h"
-#include "mini_config.h"
-#include "redef.h"
-#include "schedule.h"
-#include "semaphore.h"
-#include "thread.h"
+#include <err.h>
+#include <list.h>
+#include <memory.h>
+#include <mini_config.h>
+#include <redef.h>
+#include <schedule.h>
+#include <semaphore.h>
+#include <thread.h>
 
 #if MINI_OS_TIMER
 
