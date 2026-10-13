@@ -14,7 +14,7 @@
  *       (MINI_ERR_INVAL=-1 .. MINI_ERR_STATE=-13) and the fallback list below repeats the
  *       exact same values, so MINI_OS_ERR_* <-> MINI_ERR_* needs no conversion at all.
  * @note Besides the shared aliases, the kernel-private codes
- *       (MINI_OS_ERR_DEAD .. MINI_OS_ERR_NOT_STARTED) live on the mini-os slot of the
+ *       (MINI_OS_ERR_DEAD .. MINI_OS_ERR_REJECT) live on the mini-os slot of the
  *       mini_tree error-code map (subsystem sector slot 6, magnitudes 256..287).
  *       Their values are hard-coded in both branches and reference no status.h macro,
  *       so changing them must be mirrored in the slot base inside status.h.
@@ -47,6 +47,7 @@
 #define MINI_OS_ERR_CORRUPT (-261)     /**<heap block corrupt / double free / bad pointer */
 #define MINI_OS_ERR_PERM (-262)        /**<not the owner (e.g. unlocking someone else's mutex) */
 #define MINI_OS_ERR_NOT_STARTED (-263) /**<timer not started (or already stopped) */
+#define MINI_OS_ERR_REJECT (-264)      /**<object still referenced: destroy rejected */
 #else
 #define MINI_OS_OK 0
 #define MINI_OS_ERR_INVAL -1                    /**<invalid parameter */
@@ -72,6 +73,7 @@
 #define MINI_OS_ERR_CORRUPT (-261)     /**<heap block corrupt / double free / bad pointer */
 #define MINI_OS_ERR_PERM (-262)        /**<not the owner (e.g. unlocking someone else's mutex) */
 #define MINI_OS_ERR_NOT_STARTED (-263) /**<timer not started (or already stopped) */
+#define MINI_OS_ERR_REJECT (-264)      /**<object still referenced: destroy rejected */
 #endif
 // clang-format on
 #endif

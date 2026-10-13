@@ -16,6 +16,7 @@ extern "C"
 #include <memory.h>
 #include <list.h>
 #include <mini_config.h>
+#include <obj.h>
 #include <redef.h>
 struct mini_os_semaphore;
 struct mini_os_mutex;
@@ -54,6 +55,13 @@ typedef enum
 } mini_os_sched_policy_t;
 #endif
 
+/* A parked sync call keeps its in-flight object reference until it returns, so
+ * the kernel records it on the TCB: a thread deleted mid-call must have those
+ * references dropped, or the object it waited on can never be reclaimed.
+ * mini_os_mutex_lock() nests one level (it parks through its embedded
+ * semaphore), hence the depth of 2 */
+#define MINI_OS_THREAD_WAIT_REF_MAX 2u
+
 /**
  * @brief Structure representing a mini-os thread
  */
@@ -65,7 +73,9 @@ struct mini_os_thread
     mini_os_list_t        list_node;                             /**< List node for the thread (ready/running list or time wheel) */
     mini_os_list_t        wait_node;                             /**< List node for sync-object wait lists (queue send/receive...) */
     mini_os_list_t*       wait_list;                             /**< Wait list wait_node is parked on (MINI_OS_NULL = no sync wait) */
-    mini_os_bool_t        wait_done;                             /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
+    mini_os_bool_t        wait_status;                             /**< Sync wait satisfied by an event (MINI_OS_TRUE) or timed out */
+    mini_os_wait_ref_t    wait_refs[MINI_OS_THREAD_WAIT_REF_MAX];  /**< In-flight references of the parked sync calls (LIFO) */
+    mini_os_uint8_t       wait_ref_depth;                          /**< Number of used wait_refs slots */
     struct mini_os_mutex* wait_mutex;                            /**< Mutex this thread is blocked on (MINI_OS_NULL = no mutex wait) */
     void (*entry)(void*);                                        /**< Entry function for the thread */
     void*                  param;                                /**< Parameter for the entry function */
@@ -253,7 +263,7 @@ mini_os_err_t mini_os_thread_delete_static(mini_os_thread_t* thread, mini_os_uin
  * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
  */
 #if MINI_OS_FIND_BY_NAME
-mini_os_thread_t* mini_os_find_by_name(const char* name);
+mini_os_thread_t* mini_os_thread_find_by_name(const char* name);
 #endif
 
 /**
@@ -290,7 +300,7 @@ mini_os_err_t mini_os_thread_resume(mini_os_thread_t* thread);
  * @brief Get the current thread
  * @return mini_os_thread_t* on success, MINI_OS_NULL on failure
  */
-mini_os_thread_t* mini_os_thread_current(void);
+mini_os_thread_t* mini_os_thread_get_current(void);
 
 /**
  * @brief Delay for a specified number of ticks
@@ -485,7 +495,7 @@ mini_os_err_t mini_os_thread_idle_hook(idle_hook_t hook, void* param);
  * @brief Default idle thread body (runs the registered idle hook, then WFI)
  * @param[in] param argument passed to the idle hook
  */
-void mini_os_thread_idle(void* param);
+void mini_os_thread_idle_entry(void* param);
 
 #if MINI_OS_THREAD_DEADLINE
 /**

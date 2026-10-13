@@ -16,7 +16,7 @@
 #include <schedule.h>
 #include <semaphore.h>
 #if MINI_OS_FIND_BY_NAME
-/** @brief Global registry of every thread, used by mini_os_find_by_name() */
+/** @brief Global registry of every thread, used by mini_os_thread_find_by_name() */
 static mini_os_list_t g_threads_list;
 
 /**
@@ -122,8 +122,9 @@ static mini_os_err_t mini_os_thread_init(mini_os_thread_t* thread, const char* n
     mini_os_list_init(&thread->wait_node);
     mini_os_list_init(&thread->hold_list);
     thread->wait_list = MINI_OS_NULL;
-    thread->wait_done = MINI_OS_TRUE;
+    thread->wait_status = MINI_OS_TRUE;
     thread->wait_mutex = MINI_OS_NULL;
+    thread->wait_ref_depth = 0u;
 #if MINI_OS_EVENT
     thread->wait_mask = 0u;
 #endif
@@ -243,7 +244,7 @@ mini_os_thread_t* mini_os_current_thread = MINI_OS_NULL;
  * @brief Get the TCB of the running thread
  * @return current thread handle; MINI_OS_NULL before the scheduler started
  */
-mini_os_thread_t* mini_os_thread_current(void) { return mini_os_current_thread; }
+mini_os_thread_t* mini_os_thread_get_current(void) { return mini_os_current_thread; }
 
 /** @brief Idle thread TCB, published by mini_os_thread_idle_create() */
 static mini_os_thread_t* s_idle_thread = MINI_OS_NULL;
@@ -409,7 +410,7 @@ MINI_OS_NO_RETURN void mini_os_thread_exit(void* retval)
  *  - a READY/RUNNING thread is unlinked from the ready/running list
  *  - a BLOCKED thread is unlinked from its wait list; a wheel-parked one keeps
  *    the remaining delay in resume_time (frozen), a sync-object wait is
- *    canceled (wait_done = MINI_OS_FALSE), and the owner of the mutex it waited
+ *    canceled (wait_status = MINI_OS_FALSE), and the owner of the mutex it waited
  *    on drops the boost this waiter justified
  *  - suspending the current thread triggers a context switch
  */
@@ -441,7 +442,7 @@ mini_os_err_t mini_os_thread_suspend(mini_os_thread_t* thread)
             mini_os_list_remove(&thread->wait_node);
             thread->wait_list = MINI_OS_NULL;
             thread->wait_mutex = MINI_OS_NULL; /* no longer parked on a mutex */
-            thread->wait_done = MINI_OS_FALSE; /* the sync wait is canceled */
+            thread->wait_status = MINI_OS_FALSE; /* the sync wait is canceled */
             if (waited != MINI_OS_NULL && waited->owner != MINI_OS_NULL)
             {
                 /* same unwind as unlink_blocked: the owner must not keep the
@@ -576,7 +577,7 @@ static void mini_os_thread_unlink_blocked(mini_os_thread_t* thread)
         }
     }
     if (thread->wheel_slot < MINI_OS_TICK_WHEEL)
-        (void)mini_os_remove_thread_from_blocked_list(thread);
+        (void)mini_os_wheel_remove(thread);
 }
 
 /**
@@ -619,6 +620,9 @@ mini_os_err_t mini_os_thread_delete(mini_os_thread_t* thread)
         mini_os_remove_thread_from_ready_running_list(thread);
     else if (thread->state == MINI_OS_THREAD_STATE_BLOCKED)
         mini_os_thread_unlink_blocked(thread);
+    /* the target's parked calls can never return: drop their in-flight object
+     * references, or the objects it waited on could never be deleted again */
+    mini_os_sync_wait_ref_drop_all(thread);
 #if MINI_OS_FIND_BY_NAME
     mini_os_list_remove(&thread->g_list_node);
 #endif
@@ -715,6 +719,9 @@ mini_os_err_t mini_os_thread_delete_static(mini_os_thread_t* thread, mini_os_uin
         mini_os_remove_thread_from_ready_running_list(thread);
     else if (thread->state == MINI_OS_THREAD_STATE_BLOCKED)
         mini_os_thread_unlink_blocked(thread);
+    /* the target's parked calls can never return: drop their in-flight object
+     * references, or the objects it waited on could never be deleted again */
+    mini_os_sync_wait_ref_drop_all(thread);
 #if MINI_OS_FIND_BY_NAME
     mini_os_list_remove(&thread->g_list_node);
 #endif
@@ -910,7 +917,7 @@ mini_os_err_t mini_os_thread_delay_tick_until(mini_os_uint32_t ticks)
 
     if (ticks == 0)
         return MINI_OS_OK;
-    if (mini_os_thread_current() == MINI_OS_NULL)
+    if (mini_os_thread_get_current() == MINI_OS_NULL)
         return MINI_OS_ERR_INVAL; /* thread context only */
 
     remain = mini_os_tick_until(ticks);
@@ -1452,7 +1459,7 @@ mini_os_err_t mini_os_deadline_thread_set_bandwidth(mini_os_thread_t* thread, mi
  * @return thread handle on success; MINI_OS_NULL when name is MINI_OS_NULL or
  *         no thread carries that name
  */
-mini_os_thread_t* mini_os_find_by_name(const char* name)
+mini_os_thread_t* mini_os_thread_find_by_name(const char* name)
 {
     if (!name)
         return MINI_OS_NULL;
@@ -1523,11 +1530,11 @@ MINI_OS_WEAK mini_os_err_t mini_os_thread_idle_hook(idle_hook_t hook, void* para
  * @brief Default idle thread body (runs the idle hook loop)
  * @param[in] param argument forwarded to the idle hook
  */
-MINI_OS_WEAK void mini_os_thread_idle(void* param) { mini_os_thread_idle_hook(MINI_OS_NULL, param); }
+MINI_OS_WEAK void mini_os_thread_idle_entry(void* param) { mini_os_thread_idle_hook(MINI_OS_NULL, param); }
 
 /**
  * @brief Create the idle thread at the lowest priority
  * @note weak default: override it to customize the idle thread. The idle thread
  *       must never block, so it is created at MINI_OS_PRIORITY - 1
  */
-MINI_OS_WEAK void mini_os_thread_idle_create(void) { s_idle_thread = mini_os_thread_create(MINI_OS_IDLE_THREAD_NAME, MINI_OS_DEFAULT_IDLE_STACK_SIZE, MINI_OS_PRIORITY - 1, mini_os_thread_idle, MINI_OS_NULL); }
+MINI_OS_WEAK void mini_os_thread_idle_create(void) { s_idle_thread = mini_os_thread_create(MINI_OS_IDLE_THREAD_NAME, MINI_OS_DEFAULT_IDLE_STACK_SIZE, MINI_OS_PRIORITY - 1, mini_os_thread_idle_entry, MINI_OS_NULL); }
