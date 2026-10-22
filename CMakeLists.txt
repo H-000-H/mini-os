@@ -37,13 +37,16 @@ if(NOT DEFINED MINI_TREE_CONFIG)
 endif()
 set(MINI_OS_BUILD_EVENT ON)
 if(EXISTS "${MINI_TREE_CONFIG}")
-    # CONFIG_OSAL_EVENT 是兜底触发条件: OSAL_EVENT 会 select MINI_OS_EVENT,
-    # 而根 CMakeLists 已在配置期跑 genconfig.py 把 Kconfig 求值结果 (含 select
-    # 出来的符号) 回写 .config, 所以正常路径下 CONFIG_MINI_OS_EVENT=y 本来就在。
-    # 额外认 CONFIG_OSAL_EVENT 只为覆盖两种绕过回写的情况: 单独 cmake 构建
-    # lib/mini-os (不经过根 CMakeLists, 没有配置期回写)、以及用户手改 .config
-    # 后尚未重配。漏判的后果是 src/event.c 不编入, 而 osal_mini_os.c 已经在调
-    # mini_os_event_* -> 静态库阶段不报错, 链接 ELF 时才缺符号。
+    # CONFIG_OSAL_EVENT is the fallback trigger: OSAL_EVENT selects MINI_OS_EVENT,
+    # and the top-level CMakeLists runs genconfig.py at configure time, writing the
+    # evaluated Kconfig result (including select-derived symbols) back to .config,
+    # so on the normal path CONFIG_MINI_OS_EVENT=y is already present. Accepting
+    # CONFIG_OSAL_EVENT as well only covers two cases that bypass that write-back:
+    # building lib/mini-os standalone with cmake (no top-level CMakeLists, hence no
+    # configure-time write-back), and a hand-edited .config that has not been
+    # reconfigured yet. If this check is missed, src/event.c is not compiled in
+    # while osal_mini_os.c already calls mini_os_event_*, which only surfaces as an
+    # undefined symbol at ELF link time, not when building the static library.
     file(STRINGS "${MINI_TREE_CONFIG}" _mini_os_event REGEX "^(CONFIG_MINI_OS_EVENT|CONFIG_OSAL_EVENT)=y$")
     if(NOT _mini_os_event)
         set(MINI_OS_BUILD_EVENT OFF)
